@@ -3,6 +3,7 @@ import LoginPage from "./pages/AdminLoginPage.jsx";
 import Layout from "./components/Layout.jsx";
 import ProtectedRoute from "./components/ProtectedRoute.jsx";
 import Dashboard from "./pages/AdminDashboardOverview.jsx";
+import ProductManagementPage from "./pages/ProductManagementPage.jsx";
 
 export default function App() {
   return (
@@ -14,6 +15,7 @@ export default function App() {
         <Route element={<ProtectedRoute />}>
           <Route element={<Layout />}>
             <Route path="/dashboard" element={<Dashboard />} />
+            <Route path="/products" element={<ProductManagementPage />} />
           </Route>
         </Route>
       </Routes>
