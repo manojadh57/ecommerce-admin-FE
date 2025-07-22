@@ -12,7 +12,7 @@ export default function AdminLoginPage() {
     e.preventDefault();
     try {
       const { data } = await api.post("/auth/login", { email, password });
-      localStorage.setItem("token", data.accessJWT);
+      localStorage.setItem("token", data.tokens.accessJWT);
       navigate("/dashboard");
     } catch (e) {
       setErr(e.response?.data?.message || "Login failed");

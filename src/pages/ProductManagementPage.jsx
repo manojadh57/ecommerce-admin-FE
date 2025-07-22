@@ -1,32 +1,26 @@
 import { useEffect, useState } from "react";
 import api from "../services/api.js";
 import ProductForm from "../components/ProductForm.jsx";
+import ProductCard from "../components/ProductCard.jsx";
 
 export default function ProductManagementPage() {
-  const [products, setProducts] = useState([]);
+  const [items, setItems] = useState([]);
   const [show, setShow] = useState(false);
   const [editItem, setEdit] = useState(null);
 
-  /** load products from API */
-  const fetchProducts = async () => {
-    const { data } = await api.get("/products"); // adjust if your backend wraps result
-    setProducts(data.products ?? data); // graceful fallback
+  const load = async () => {
+    const { data } = await api.get("/products");
+    setItems(data.products ?? data);
   };
 
   useEffect(() => {
-    fetchProducts();
+    load();
   }, []);
 
   const onDelete = async (id) => {
     if (!window.confirm("Delete product?")) return;
     await api.delete(`/products/${id}`);
-    fetchProducts();
-  };
-
-  const onSaveSuccess = () => {
-    setShow(false);
-    setEdit(null);
-    fetchProducts();
+    load();
   };
 
   return (
@@ -44,42 +38,19 @@ export default function ProductManagementPage() {
         </button>
       </div>
 
-      <table className="table table-striped">
-        <thead>
-          <tr>
-            <th>Name</th>
-            <th>Price ($)</th>
-            <th>Stock</th>
-            <th></th>
-          </tr>
-        </thead>
-        <tbody>
-          {products.map((p) => (
-            <tr key={p._id}>
-              <td>{p.name}</td>
-              <td>{p.price}</td>
-              <td>{p.stock}</td>
-              <td>
-                <button
-                  className="btn btn-sm btn-outline-info me-2"
-                  onClick={() => {
-                    setEdit(p);
-                    setShow(true);
-                  }}
-                >
-                  Edit
-                </button>
-                <button
-                  className="btn btn-sm btn-outline-danger"
-                  onClick={() => onDelete(p._id)}
-                >
-                  Delete
-                </button>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+      <div className="row">
+        {items.map((p) => (
+          <ProductCard
+            key={p._id}
+            item={p}
+            onEdit={(prod) => {
+              setEdit(prod);
+              setShow(true);
+            }}
+            onDelete={onDelete}
+          />
+        ))}
+      </div>
 
       {show && (
         <ProductForm
@@ -88,7 +59,7 @@ export default function ProductManagementPage() {
             setShow(false);
             setEdit(null);
           }}
-          onSuccess={onSaveSuccess}
+          onSuccess={load}
         />
       )}
     </>
