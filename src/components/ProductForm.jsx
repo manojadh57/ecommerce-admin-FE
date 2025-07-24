@@ -4,28 +4,51 @@ import api from "../services/api.js";
 export default function ProductForm({ initial, onClose, onSuccess }) {
   const isEdit = Boolean(initial);
 
+  //product field//
   const [form, setForm] = useState({
     name: initial?.name ?? "",
     price: initial?.price ?? "",
     stock: initial?.stock ?? "",
-    category: initial?.category?._id ?? initial?.category ?? "",
     description: initial?.description ?? "",
   });
+
   const [preview, setPreview] = useState(initial?.images?.[0] || "");
   const [file, setFile] = useState(null);
-  const [categories, setCategories] = useState([]);
-  const [subcategories, setSubCategories] = useState([]);
+
+  //categories states//
+  const [categories, setCategories] = useState([]); // all docs
+  const [parent, setParent] = useState(""); // chosen parent _id
+  const [subCategories, setSubCategories] = useState([]); // children of parent
+  const [subCat, setSubCat] = useState(""); // chosen child _id
 
   const [err, setErr] = useState("");
 
-  //fetch//
+  //fetch all api
   useEffect(() => {
-    api
-      .get("/categories")
-      .then(({ data }) => setCategories(data.categories ?? data));
+    api.get("/categories").then(({ data }) => {
+      const list = data.categories ?? data; // array
+      setCategories(list);
+
+      ///edit the dropdown
+      if (isEdit) {
+        const catId = initial.category?._id ?? initial.category ?? "";
+        const thisCat = list.find((c) => c._id === catId);
+        if (thisCat) {
+          if (thisCat.parent) {
+            // product is under a subcategory
+            setParent(thisCat.parent);
+            setSubCategories(list.filter((c) => c.parent === thisCat.parent));
+            setSubCat(thisCat._id);
+          } else {
+            //  under a parent category
+            setParent(thisCat._id);
+          }
+        }
+      }
+    });
   }, []);
 
-  ///handler
+  //handler function//
   const handleChange = (e) =>
     setForm({ ...form, [e.target.name]: e.target.value });
 
@@ -36,11 +59,19 @@ export default function ProductForm({ initial, onClose, onSuccess }) {
     setPreview(URL.createObjectURL(f));
   };
 
+  const handleParentSelect = (e) => {
+    const val = e.target.value;
+    setParent(val);
+    setSubCategories(categories.filter((c) => c.parent === val));
+    setSubCat("");
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
       const fd = new FormData();
       Object.entries(form).forEach(([k, v]) => fd.append(k, v));
+      fd.append("category", subCat || parent);
       if (file) fd.append("image", file);
 
       if (isEdit) {
@@ -52,14 +83,15 @@ export default function ProductForm({ initial, onClose, onSuccess }) {
           headers: { "Content-Type": "multipart/form-data" },
         });
       }
-      onSuccess(); // refreshlist
-      onClose();
+
+      onSuccess(); // refresh list in parent page
+      onClose(); // close modal
     } catch (error) {
       setErr(error.response?.data?.message || "Save failed");
     }
   };
 
-  ///ui//
+  //ui//
   return (
     <div className="modal d-block" style={{ background: "#0008" }}>
       <div className="modal-dialog modal-lg">
@@ -71,7 +103,7 @@ export default function ProductForm({ initial, onClose, onSuccess }) {
             <button className="btn-close" onClick={onClose}></button>
           </div>
 
-          <form onSubmit={handleSubmit}>
+          <form onSubmit={handleSubmit} encType="multipart/form-data">
             <div className="modal-body row g-3">
               {err && <div className="alert alert-danger w-100">{err}</div>}
 
@@ -82,6 +114,7 @@ export default function ProductForm({ initial, onClose, onSuccess }) {
                   placeholder="Name"
                   value={form.name}
                   onChange={handleChange}
+                  required
                 />
                 <input
                   name="price"
@@ -91,6 +124,7 @@ export default function ProductForm({ initial, onClose, onSuccess }) {
                   placeholder="Price"
                   value={form.price}
                   onChange={handleChange}
+                  required
                 />
                 <input
                   name="stock"
@@ -99,6 +133,7 @@ export default function ProductForm({ initial, onClose, onSuccess }) {
                   placeholder="Stock"
                   value={form.stock}
                   onChange={handleChange}
+                  required
                 />
                 <textarea
                   name="description"
@@ -107,46 +142,41 @@ export default function ProductForm({ initial, onClose, onSuccess }) {
                   value={form.description}
                   onChange={handleChange}
                 />
-                Parent Category
+
+                <label className="form-label mb-0">Parent Category</label>
                 <select
-                  name="category"
                   className="form-select mb-2"
-                  value={form.category}
-                  onChange={(e) => {
-                    handleChange(e);
-                    setSubCategories(
-                      categories.filter((c) => c.parent == e.target.value)
-                    );
-                  }}
+                  value={parent}
+                  onChange={handleParentSelect}
+                  required
                 >
-                  <option value="">-- Choose Category --</option>
-                  {categories.map((c) =>
-                    c.parent != null ? (
-                      <> </>
-                    ) : (
+                  <option value=""> Choose parent </option>
+                  {categories
+                    .filter((c) => !c.parent)
+                    .map((c) => (
                       <option key={c._id} value={c._id}>
                         {c.name}
                       </option>
-                    )
-                  )}
+                    ))}
                 </select>
-                Sub Category
+
+                <label className="form-label mb-0">Sub-category</label>
                 <select
-                  name="category"
                   className="form-select mb-2"
-                  value={form.category}
-                  onChange={handleChange}
+                  value={subCat}
+                  onChange={(e) => setSubCat(e.target.value)}
+                  disabled={!parent}
                 >
-                  <option value="">-- Choose Category --</option>
-                  {subcategories.map((c) =>
-                    c.parent == null ? (
-                      <> </>
-                    ) : (
-                      <option key={c._id} value={c._id}>
-                        {c.name}
-                      </option>
-                    )
-                  )}
+                  <option value="">
+                    {parent
+                      ? "-- Choose sub-category --"
+                      : "-- Select parent first --"}
+                  </option>
+                  {subCategories.map((c) => (
+                    <option key={c._id} value={c._id}>
+                      {c.name}
+                    </option>
+                  ))}
                 </select>
               </div>
 

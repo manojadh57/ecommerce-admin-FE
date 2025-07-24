@@ -1,44 +1,19 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Form, Button } from "react-bootstrap";
-import api from "../services/api";
 
-export default function CategoryForm({ initial = {}, onSave }) {
+export default function CategoryForm({ initial = {}, parents = [], onSave }) {
   const safe = initial || {};
 
-  const [categoryList, setCategoryList] = useState([
-    {
-      name: "Cat1",
-      _id: "id1",
-    },
-    {
-      name: "Cat2",
-      _id: "id2",
-    },
-    {
-      name: "Cat3",
-      _id: "id3",
-    },
-  ]);
-
   const [name, setName] = useState(safe.name || "");
-  const [parentId, setParentId] = useState("");
+  const [parent, setParent] = useState(safe.parent || "");
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    onSave({ name, parent: parentId });
+    onSave({ name, parent });
   };
-
-  const getCats = async () => {
-    const { data } = await api.get("/categories");
-    setCategoryList(Array.isArray(data) ? data : data.categories || []);
-  };
-
-  useEffect(() => {
-    getCats();
-  }, []);
-
   return (
     <Form onSubmit={handleSubmit}>
+      {/* Name */}
       <Form.Group controlId="catName">
         <Form.Label>Name</Form.Label>
         <Form.Control
@@ -49,21 +24,25 @@ export default function CategoryForm({ initial = {}, onSave }) {
         />
       </Form.Group>
 
-      <Form.Select
-        aria-label="Default select example"
-        name="parent"
-        onChange={(e) => setParentId(e.target.value)}
-      >
-        <option> Null</option>
-        {categoryList.map((cat) => (
-          <option value={cat._id}>{cat.name}</option>
-        ))}
-      </Form.Select>
+      {/* Parent selector */}
+      <Form.Group className="mt-3">
+        <Form.Label>Parent (optional)</Form.Label>
+        <Form.Select value={parent} onChange={(e) => setParent(e.target.value)}>
+          <option value="">— none (top-level) —</option>
 
-      <div className="text-end mt-3">
-        <Button variant="primary" type="submit">
-          {safe._id ? "Update" : "Create"}
-        </Button>
+          {parents
+            .filter((p) => p._id !== safe._id)
+            .map((p) => (
+              <option key={p._id} value={p._id}>
+                {p.name}
+              </option>
+            ))}
+        </Form.Select>
+      </Form.Group>
+
+      {/* Submit */}
+      <div className="text-end mt-4">
+        <Button type="submit">{safe._id ? "Update" : "Create"}</Button>
       </div>
     </Form>
   );
