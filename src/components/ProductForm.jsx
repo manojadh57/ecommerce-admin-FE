@@ -4,7 +4,6 @@ import api from "../services/api.js";
 export default function ProductForm({ initial, onClose, onSuccess }) {
   const isEdit = Boolean(initial);
 
-  /* ------------ local state ------------ */
   const [form, setForm] = useState({
     name: initial?.name ?? "",
     price: initial?.price ?? "",
@@ -15,16 +14,18 @@ export default function ProductForm({ initial, onClose, onSuccess }) {
   const [preview, setPreview] = useState(initial?.images?.[0] || "");
   const [file, setFile] = useState(null);
   const [categories, setCategories] = useState([]);
+  const [subcategories, setSubCategories] = useState([]);
+
   const [err, setErr] = useState("");
 
-  /* ------------ fetch categories once ------------ */
+  //fetch//
   useEffect(() => {
     api
       .get("/categories")
       .then(({ data }) => setCategories(data.categories ?? data));
   }, []);
 
-  /* ------------ handlers ------------ */
+  ///handler
   const handleChange = (e) =>
     setForm({ ...form, [e.target.name]: e.target.value });
 
@@ -51,19 +52,18 @@ export default function ProductForm({ initial, onClose, onSuccess }) {
           headers: { "Content-Type": "multipart/form-data" },
         });
       }
-      onSuccess(); // refresh list in parent
+      onSuccess(); // refreshlist
       onClose();
     } catch (error) {
       setErr(error.response?.data?.message || "Save failed");
     }
   };
 
-  /* ------------ UI ------------ */
+  ///ui//
   return (
     <div className="modal d-block" style={{ background: "#0008" }}>
       <div className="modal-dialog modal-lg">
         <div className="modal-content">
-          {/* header */}
           <div className="modal-header">
             <h5 className="modal-title">
               {isEdit ? "Edit Product" : "Add Product"}
@@ -71,14 +71,11 @@ export default function ProductForm({ initial, onClose, onSuccess }) {
             <button className="btn-close" onClick={onClose}></button>
           </div>
 
-          {/* form */}
           <form onSubmit={handleSubmit}>
             <div className="modal-body row g-3">
               {err && <div className="alert alert-danger w-100">{err}</div>}
 
-              {/* left column */}
               <div className="col-md-7">
-                {/* name */}
                 <input
                   name="name"
                   className="form-control mb-2"
@@ -86,7 +83,6 @@ export default function ProductForm({ initial, onClose, onSuccess }) {
                   value={form.name}
                   onChange={handleChange}
                 />
-                {/* price */}
                 <input
                   name="price"
                   type="number"
@@ -96,7 +92,6 @@ export default function ProductForm({ initial, onClose, onSuccess }) {
                   value={form.price}
                   onChange={handleChange}
                 />
-                {/* stock */}
                 <input
                   name="stock"
                   type="number"
@@ -105,7 +100,6 @@ export default function ProductForm({ initial, onClose, onSuccess }) {
                   value={form.stock}
                   onChange={handleChange}
                 />
-                {/* description */}
                 <textarea
                   name="description"
                   className="form-control mb-2"
@@ -113,8 +107,30 @@ export default function ProductForm({ initial, onClose, onSuccess }) {
                   value={form.description}
                   onChange={handleChange}
                 />
-
-                {/* category dropdown */}
+                Parent Category
+                <select
+                  name="category"
+                  className="form-select mb-2"
+                  value={form.category}
+                  onChange={(e) => {
+                    handleChange(e);
+                    setSubCategories(
+                      categories.filter((c) => c.parent == e.target.value)
+                    );
+                  }}
+                >
+                  <option value="">-- Choose Category --</option>
+                  {categories.map((c) =>
+                    c.parent != null ? (
+                      <> </>
+                    ) : (
+                      <option key={c._id} value={c._id}>
+                        {c.name}
+                      </option>
+                    )
+                  )}
+                </select>
+                Sub Category
                 <select
                   name="category"
                   className="form-select mb-2"
@@ -122,15 +138,18 @@ export default function ProductForm({ initial, onClose, onSuccess }) {
                   onChange={handleChange}
                 >
                   <option value="">-- Choose Category --</option>
-                  {categories.map((c) => (
-                    <option key={c._id} value={c._id}>
-                      {c.name}
-                    </option>
-                  ))}
+                  {subcategories.map((c) =>
+                    c.parent == null ? (
+                      <> </>
+                    ) : (
+                      <option key={c._id} value={c._id}>
+                        {c.name}
+                      </option>
+                    )
+                  )}
                 </select>
               </div>
 
-              {/* right column: image */}
               <div className="col-md-5 text-center">
                 <img
                   src={preview || "https://via.placeholder.com/250x180"}
@@ -146,7 +165,6 @@ export default function ProductForm({ initial, onClose, onSuccess }) {
               </div>
             </div>
 
-            {/* footer */}
             <div className="modal-footer">
               <button
                 type="button"

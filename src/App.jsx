@@ -4,6 +4,7 @@ import Layout from "./components/Layout.jsx";
 import ProtectedRoute from "./components/ProtectedRoute.jsx";
 import Dashboard from "./pages/AdminDashboardOverview.jsx";
 import ProductManagementPage from "./pages/ProductManagementPage.jsx";
+import CategoryManagementPage from "./pages/CategoryManagementPage.jsx";
 
 export default function App() {
   return (
@@ -16,6 +17,7 @@ export default function App() {
           <Route element={<Layout />}>
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/products" element={<ProductManagementPage />} />
+            <Route path="/categories" element={<CategoryManagementPage />} />
           </Route>
         </Route>
       </Routes>

@@ -12,13 +12,17 @@ export default function AdminSidebar() {
   return (
     <aside className="bg-dark text-white p-3" style={{ width: 220 }}>
       <h4 className="text-center">Admin</h4>
+
       <ul className="nav flex-column gap-2 mt-4">
         {links.map(([label, path]) => (
           <li key={path}>
             <NavLink
               to={path}
+              end
               className={({ isActive }) =>
-                `nav-link ${isActive ? "active text-info" : "text-light"}`
+                `nav-link ${
+                  isActive ? "active fw-bold text-info" : "text-light"
+                }`
               }
             >
               {label}
