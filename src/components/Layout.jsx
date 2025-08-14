@@ -1,5 +1,5 @@
 import AdminSidebar from "./AdminSidebar.jsx";
-import AdminHeader from "./AdminHeader.jsx";
+import AdminHeader from "./Adminheader.jsx";
 import { Outlet } from "react-router-dom";
 
 export default function Layout() {

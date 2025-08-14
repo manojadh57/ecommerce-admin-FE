@@ -4,7 +4,6 @@ import api from "../services/api";
 import CategoryForm from "../components/CategoryForm";
 
 export default function CategoryManagementPage() {
-  //states//
   const [cats, setCats] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -15,7 +14,6 @@ export default function CategoryManagementPage() {
   const [prodModal, setProdModal] = useState(false);
   const [products, setProducts] = useState([]);
 
-  //fetch api//
   const fetchCats = async () => {
     try {
       setLoading(true);
@@ -27,11 +25,11 @@ export default function CategoryManagementPage() {
       setLoading(false);
     }
   };
+
   useEffect(() => {
     fetchCats();
   }, []);
 
-  ///crud//
   const saveCat = async (payload) => {
     editing
       ? await api.put(`/categories/${editing._id}`, payload)
@@ -49,17 +47,14 @@ export default function CategoryManagementPage() {
     }
   };
 
-  //product model//
   const openProducts = async (catId) => {
     const { data } = await api.get(`/products?category=${catId}`);
     setProducts(data);
     setProdModal(true);
   };
 
-  //deliver listning//
   const parents = cats.filter((c) => !c.parent);
 
-  //counting function//
   const totalForParent = (parent) => {
     const childSum = cats
       .filter((c) => c.parent === parent._id)
@@ -68,98 +63,105 @@ export default function CategoryManagementPage() {
     return (parent.productCount || 0) + childSum;
   };
 
-  //the ui//
   return (
     <>
       <div className="d-flex justify-content-between align-items-center mb-3">
-        <h3>Categories</h3>
+        <h3 className="mb-0">Categories</h3>
         <Button onClick={() => setShowForm(true)}>+ Add Category</Button>
       </div>
 
       {error && <Alert variant="danger">{error}</Alert>}
 
       {loading ? (
-        <Spinner animation="border" />
+        <div className="py-5 text-center">
+          <Spinner animation="border" />
+        </div>
       ) : (
-        <Table bordered hover responsive>
-          <thead>
-            <tr>
-              <th>Name</th>
-              <th># Products</th>
-              <th style={{ width: 220 }}>Actions</th>
-            </tr>
-          </thead>
-
-          <tbody>
-            {parents.map((parent) => (
-              <Fragment key={parent._id}>
-                <tr className="table-primary">
-                  <td>
-                    <strong>{parent.name}</strong>
-                  </td>
-
-                  <td>{totalForParent(parent)}</td>
-                  <td>
-                    <Button size="sm" onClick={() => openProducts(parent._id)}>
-                      View
-                    </Button>{" "}
-                    <Button
-                      size="sm"
-                      variant="secondary"
-                      onClick={() => {
-                        setEditing(parent);
-                        setShowForm(true);
-                      }}
-                    >
-                      Edit
-                    </Button>{" "}
-                    <Button
-                      size="sm"
-                      variant="danger"
-                      onClick={() => delCat(parent._id)}
-                    >
-                      Delete
-                    </Button>
-                  </td>
-                </tr>
-
-                {cats
-                  .filter((c) => c.parent === parent._id)
-                  .map((child) => (
-                    <tr key={child._id}>
-                      <td className="ps-4">— {child.name}</td>
-                      <td>{child.productCount ?? "—"}</td>
-                      <td>
+        <div className="table-responsive">
+          <Table bordered hover className="align-middle">
+            <thead className="table-light">
+              <tr>
+                <th>Name</th>
+                <th># Products</th>
+                <th style={{ width: 220 }}>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {parents.map((parent) => (
+                <Fragment key={parent._id}>
+                  <tr className="table-primary">
+                    <td>
+                      <strong>{parent.name}</strong>
+                    </td>
+                    <td>{totalForParent(parent)}</td>
+                    <td>
+                      <div className="d-flex gap-2">
                         <Button
                           size="sm"
-                          onClick={() => openProducts(child._id)}
+                          onClick={() => openProducts(parent._id)}
                         >
                           View
-                        </Button>{" "}
+                        </Button>
                         <Button
                           size="sm"
                           variant="secondary"
                           onClick={() => {
-                            setEditing(child);
+                            setEditing(parent);
                             setShowForm(true);
                           }}
                         >
                           Edit
-                        </Button>{" "}
+                        </Button>
                         <Button
                           size="sm"
                           variant="danger"
-                          onClick={() => delCat(child._id)}
+                          onClick={() => delCat(parent._id)}
                         >
                           Delete
                         </Button>
-                      </td>
-                    </tr>
-                  ))}
-              </Fragment>
-            ))}
-          </tbody>
-        </Table>
+                      </div>
+                    </td>
+                  </tr>
+                  {cats
+                    .filter((c) => c.parent === parent._id)
+                    .map((child) => (
+                      <tr key={child._id}>
+                        <td className="ps-4">— {child.name}</td>
+                        <td>{child.productCount ?? "—"}</td>
+                        <td>
+                          <div className="d-flex gap-2">
+                            <Button
+                              size="sm"
+                              onClick={() => openProducts(child._id)}
+                            >
+                              View
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="secondary"
+                              onClick={() => {
+                                setEditing(child);
+                                setShowForm(true);
+                              }}
+                            >
+                              Edit
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="danger"
+                              onClick={() => delCat(child._id)}
+                            >
+                              Delete
+                            </Button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                </Fragment>
+              ))}
+            </tbody>
+          </Table>
+        </div>
       )}
 
       {showForm && (
@@ -192,7 +194,7 @@ export default function CategoryManagementPage() {
         <Modal.Body>
           {products.length ? (
             <Table bordered>
-              <thead>
+              <thead className="table-light">
                 <tr>
                   <th>Name</th>
                   <th>Price</th>
