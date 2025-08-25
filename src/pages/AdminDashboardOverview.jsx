@@ -1,691 +1,599 @@
 import { useEffect, useMemo, useState } from "react";
 import api from "../services/api.js";
 
-/* ---------- formatters ---------- */
-const moneyAUD = (n) =>
-  Number(n || 0).toLocaleString(undefined, {
-    style: "currency",
-    currency: "AUD",
-    minimumFractionDigits: 2,
-  });
-
-const fmtInt = (n) =>
-  Number(n || 0).toLocaleString(undefined, {
-    maximumFractionDigits: 0,
-  });
-
-/* ---------- date helpers ---------- */
-const startOfDay = (d) => new Date(d.getFullYear(), d.getMonth(), d.getDate());
-const sameDay = (a, b) => startOfDay(a).getTime() === startOfDay(b).getTime();
-
-/* ---------- small SVG helpers ---------- */
-function LineChart({
-  data,
-  height = 140,
-  stroke = "#0d6efd",
-  fill = "#0d6efd14",
-}) {
-  // data: [{label, value}]
-  const w = Math.max(260, data.length * 42);
-  const pad = 24;
-  const max = Math.max(...data.map((d) => d.value), 1);
-
-  const pts = data.map((d, i) => {
-    const x = pad + (i * (w - pad * 2)) / Math.max(1, data.length - 1);
-    const y = pad + (1 - d.value / max) * (height - pad * 2);
-    return [x, y];
-  });
-
-  const path = pts
-    .map((p, i) => (i === 0 ? `M ${p[0]} ${p[1]}` : `L ${p[0]} ${p[1]}`))
-    .join(" ");
-
-  // area fill
-  const area = `${path} L ${pts[pts.length - 1][0]} ${height - pad} L ${
-    pts[0][0]
-  } ${height - pad} Z`;
-
-  return (
-    <div style={{ overflowX: "auto" }}>
-      <svg width={w} height={height} role="img">
-        <rect x="0" y="0" width={w} height={height} fill="white" />
-        <path d={area} fill={fill} stroke="none" />
-        <path d={path} stroke={stroke} strokeWidth="2" fill="none" />
-        {pts.map((p, i) => (
-          <circle key={i} cx={p[0]} cy={p[1]} r="3" fill={stroke} />
-        ))}
-        {/* x labels */}
-        {data.map((d, i) => {
-          const x = pad + (i * (w - pad * 2)) / Math.max(1, data.length - 1);
-          return (
-            <text
-              key={i}
-              x={x}
-              y={height - 6}
-              textAnchor="middle"
-              fontSize="11"
-              fill="#6c757d"
-            >
-              {d.label}
-            </text>
-          );
-        })}
-      </svg>
-    </div>
-  );
+/* ---------------- helpers ---------------- */
+function toNumber(x, d = 0) {
+  const n = Number(x);
+  return Number.isFinite(n) ? n : d;
+}
+function idOf(userLike) {
+  if (!userLike) return null;
+  if (typeof userLike === "string") return userLike;
+  if (typeof userLike === "object" && userLike._id) return userLike._id;
+  return null;
 }
 
-function BarChart({
-  data, // [{ label, value }]
-  height = 180,
-  barColor = "#198754",
-  minColWidth = 88, // <- keep bars readable
-  rotateLabels = true,
-  valueFormatter = (v) => v, // e.g. n => n.toLocaleString()
-  maxLabelChars = 16, // truncation length for label text
-}) {
-  const pad = 28; // chart padding
-  const n = Math.max(data.length, 1);
-  const innerW = Math.max(n * minColWidth, 260);
-  const w = innerW + pad * 2;
-
-  const max = Math.max(...data.map((d) => Number(d.value || 0)), 1);
-  const slotW = innerW / n;
-  const barW = Math.max(slotW * 0.6, 24); // bar takes ~60% of its slot
-
-  const gridSteps = 4;
-  const grid = Array.from(
-    { length: gridSteps + 1 },
-    (_, i) => (i / gridSteps) * max
-  );
-
-  const truncate = (s) =>
-    s.length > maxLabelChars ? s.slice(0, maxLabelChars - 1) + "…" : s;
-
-  return (
-    <div style={{ overflowX: "auto" }}>
-      <svg width={w} height={height} role="img">
-        <rect x="0" y="0" width={w} height={height} fill="#fff" />
-
-        {/* horizontal gridlines */}
-        {grid.map((val, i) => {
-          const y = pad + (1 - val / max) * (height - pad * 2);
-          return (
-            <g key={`g${i}`}>
-              <line x1={pad} y1={y} x2={w - pad} y2={y} stroke="#e9ecef" />
-              {i > 0 && i < gridSteps && (
-                <text
-                  x={pad - 6}
-                  y={y}
-                  fontSize="10"
-                  fill="#6c757d"
-                  textAnchor="end"
-                  dy="3"
-                >
-                  {valueFormatter(Math.round(val))}
-                </text>
-              )}
-            </g>
-          );
-        })}
-
-        {/* bars */}
-        {data.map((d, i) => {
-          const value = Number(d.value || 0);
-          const h = (value / max) * (height - pad * 2);
-          const x = pad + i * slotW + (slotW - barW) / 2;
-          const y = height - pad - h;
-          return (
-            <g key={i}>
-              <rect
-                x={x}
-                y={y}
-                width={barW}
-                height={h}
-                fill={barColor + "55"}
-                stroke={barColor + "99"}
-                rx="8"
-              />
-              {/* value badge */}
-              <text
-                x={x + barW / 2}
-                y={y - 6}
-                textAnchor="middle"
-                fontSize="11"
-                fontWeight="700"
-                fill="#343a40"
-              >
-                {valueFormatter(value)}
-              </text>
-
-              {/* x label */}
-              {rotateLabels ? (
-                <text
-                  transform={`translate(${x + barW / 2}, ${
-                    height - 6
-                  }) rotate(-35)`}
-                  textAnchor="end"
-                  fontSize="11"
-                  fill="#6c757d"
-                >
-                  <title>{d.label}</title>
-                  {truncate(String(d.label))}
-                </text>
-              ) : (
-                <text
-                  x={x + barW / 2}
-                  y={height - 6}
-                  textAnchor="middle"
-                  fontSize="11"
-                  fill="#6c757d"
-                >
-                  <title>{d.label}</title>
-                  {truncate(String(d.label))}
-                </text>
-              )}
-            </g>
-          );
-        })}
-      </svg>
-    </div>
-  );
-}
-
-function Donut({ valueMap }) {
-  // valueMap: [{label, value, color}]
-  const total = valueMap.reduce((s, x) => s + (x.value || 0), 0) || 1;
-  const radius = 56;
-  const stroke = 20;
-  const cx = 70;
-  const cy = 70;
-  let acc = 0;
-
-  const segs = valueMap.map((s, idx) => {
-    const frac = (s.value || 0) / total;
-    const dash = frac * (2 * Math.PI * radius);
-    const gap = 2;
-    const seg = (
-      <circle
-        key={idx}
-        r={radius}
-        cx={cx}
-        cy={cy}
-        fill="transparent"
-        stroke={s.color}
-        strokeWidth={stroke}
-        strokeDasharray={`${dash} ${2 * Math.PI * radius}`}
-        strokeDashoffset={-acc}
-      />
-    );
-    acc += dash + gap;
-    return seg;
-  });
-
-  return (
-    <div className="d-flex align-items-center gap-3">
-      <svg width="140" height="140" role="img">
-        <circle
-          r={radius}
-          cx={cx}
-          cy={cy}
-          fill="transparent"
-          stroke="#e9ecef"
-          strokeWidth={stroke}
-        />
-        {segs}
-        <text
-          x={cx}
-          y={cy}
-          textAnchor="middle"
-          dominantBaseline="middle"
-          fontWeight="700"
-        >
-          {Math.round(
-            ((valueMap.find((v) => v.label === "delivered")?.value || 0) /
-              total) *
-              100
-          ) || 0}
-          %
-        </text>
-      </svg>
-      <div>
-        {valueMap.map((s) => (
-          <div key={s.label} className="d-flex align-items-center gap-2 mb-1">
-            <span
-              style={{
-                width: 12,
-                height: 12,
-                background: s.color,
-                borderRadius: 3,
-                display: "inline-block",
-              }}
-            />
-            <span style={{ minWidth: 90 }}>{s.label}</span>
-            <strong>{fmtInt(s.value)}</strong>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-/* ---------- main ---------- */
+/* =========================================================
+   AdminDashboardOverview
+   ========================================================= */
 export default function AdminDashboardOverview() {
+  // ===== State =====
   const [orders, setOrders] = useState([]);
   const [products, setProducts] = useState([]);
   const [reviews, setReviews] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [err, setErr] = useState("");
-  const [range, setRange] = useState("7"); // 7 | 30
+  const [error, setError] = useState("");
+  const [range, setRange] = useState("30d"); // "7d" | "30d" | "90d" | "all"
 
-  const load = async () => {
+  // ===== Load =====
+  const loadDashboardData = async () => {
     try {
       setLoading(true);
-      setErr("");
-      const [o, p, r] = await Promise.all([
+      setError("");
+      const [ordersRes, productsRes, reviewsRes] = await Promise.all([
         api.get("/orders"),
         api.get("/products"),
         api.get("/reviews"),
       ]);
-
-      const O = Array.isArray(o.data)
-        ? o.data
-        : Array.isArray(o.data?.orders)
-        ? o.data.orders
-        : [];
-      const P = Array.isArray(p.data)
-        ? p.data
-        : Array.isArray(p.data?.products)
-        ? p.data.products
-        : [];
-      const R = Array.isArray(r.data)
-        ? r.data
-        : Array.isArray(r.data?.reviews)
-        ? r.data.reviews
-        : [];
-
-      setOrders(O);
-      setProducts(P);
-      setReviews(R);
-    } catch (e) {
-      setErr(e?.response?.data?.message || e.message);
-      setOrders([]);
-      setProducts([]);
-      setReviews([]);
+      const ordersData = Array.isArray(ordersRes.data)
+        ? ordersRes.data
+        : ordersRes.data?.orders || [];
+      const productsData = Array.isArray(productsRes.data)
+        ? productsRes.data
+        : productsRes.data?.products || [];
+      const reviewsData = Array.isArray(reviewsRes.data)
+        ? reviewsRes.data
+        : reviewsRes.data?.reviews || [];
+      setOrders(ordersData);
+      setProducts(productsData);
+      setReviews(reviewsData);
+    } catch (err) {
+      setError(err?.response?.data?.message || err.message);
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    load();
+    loadDashboardData();
   }, []);
 
-  // ----- computed metrics -----
-  const now = new Date();
-  const daysBack = Number(range);
-  const fromDate = startOfDay(
-    new Date(now.getFullYear(), now.getMonth(), now.getDate() - daysBack + 1)
-  );
+  // ===== Time range =====
+  const now = useMemo(() => new Date(), []);
+  const fromDate = useMemo(() => {
+    if (range === "all") return null;
+    const d = new Date();
+    const days = range === "7d" ? 7 : range === "90d" ? 90 : 30;
+    d.setDate(d.getDate() - days);
+    return d;
+  }, [range]);
 
-  const ordersInRange = useMemo(
-    () =>
-      orders.filter((o) => {
-        const d = new Date(o.createdAt || 0);
-        return d >= fromDate && d <= now;
-      }),
-    [orders, range]
-  );
-
-  const revenueAll = useMemo(
-    () => orders.reduce((s, o) => s + Number(o.totalAmount || 0), 0),
-    [orders]
-  );
-
-  const revenueRange = useMemo(
-    () => ordersInRange.reduce((s, o) => s + Number(o.totalAmount || 0), 0),
-    [ordersInRange]
-  );
-
-  const totalOrders = orders.length;
-  const totalOrdersRange = ordersInRange.length;
-  const pendingOrders = orders.filter((o) => o.status === "pending").length;
-  const pendingReviews = reviews.filter((r) => !r.approved).length;
-
-  const lowStock = useMemo(
-    () => products.filter((p) => Number(p.stock || 0) <= 5).slice(0, 6),
-    [products]
-  );
-
-  // timeline labels (N days)
-  const N = Number(range);
-  const days = Array.from({ length: N }, (_, i) => {
-    const d = new Date(now);
-    d.setDate(d.getDate() - (N - 1 - i));
-    return startOfDay(d);
-  });
-
-  // series: revenue by day & orders by day
-  const revenueSeries = days.map((d) => {
-    const sum = orders
-      .filter((o) => sameDay(new Date(o.createdAt || 0), d))
-      .reduce((acc, o) => acc + Number(o.totalAmount || 0), 0);
-    return {
-      label: d.toLocaleDateString(undefined, {
-        day: "2-digit",
-        month: "short",
-      }),
-      value: sum,
-    };
-    // label example: 14 Aug
-  });
-
-  const ordersSeries = days.map((d) => {
-    const count = orders.filter((o) =>
-      sameDay(new Date(o.createdAt || 0), d)
-    ).length;
-    return {
-      label: d.toLocaleDateString(undefined, {
-        day: "2-digit",
-        month: "short",
-      }),
-      value: count,
-    };
-  });
-
-  // donut: order statuses
-  const statusCount = (s) => ordersInRange.filter((o) => o.status === s).length;
-  const donutData = [
-    { label: "pending", value: statusCount("pending"), color: "#ffc107" },
-    { label: "shipped", value: statusCount("shipped"), color: "#0dcaf0" },
-    { label: "delivered", value: statusCount("delivered"), color: "#20c997" },
-    { label: "cancelled", value: statusCount("cancelled"), color: "#dc3545" },
-  ];
-
-  // top products by quantity sold in range
-  const qtyByProduct = new Map();
-  ordersInRange.forEach((o) => {
-    (o.products || []).forEach((it) => {
-      const pid =
-        typeof it.productId === "object"
-          ? it.productId?._id || it.productId?.id
-          : it.productId;
-      const name =
-        (typeof it.productId === "object" &&
-          (it.productId?.name || it.productId?.title)) ||
-        String(pid || "Unknown");
-      const qty = Number(it.quantity || 0);
-      const prev = qtyByProduct.get(name) || 0;
-      qtyByProduct.set(name, prev + qty);
-    });
-  });
-  const topProducts = [...qtyByProduct.entries()]
-    .map(([label, value]) => ({ label: label.toString().slice(0, 18), value }))
-    .sort((a, b) => b.value - a.value)
-    .slice(0, 6);
-
-  // chip style
-  const chip = (bg, color = "#000") => ({
-    display: "inline-block",
-    padding: "4px 10px",
-    borderRadius: 8,
-    fontWeight: 700,
-    lineHeight: 1,
-    background: bg,
-    color,
-    textTransform: "capitalize",
-  });
-
-  const badgeFor = (status) => {
-    switch (status) {
-      case "pending":
-        return chip("#fff3cd", "#663c00");
-      case "shipped":
-        return chip("#cfe8ff", "#084298");
-      case "delivered":
-        return chip("#d1fae5", "#065f46");
-      case "cancelled":
-        return chip("#f8d7da", "#842029");
-      default:
-        return chip("#e9ecef", "#212529");
-    }
+  const inRange = (iso) => {
+    const dt = new Date(iso);
+    if (Number.isNaN(dt.getTime())) return false;
+    if (!fromDate) return dt <= now;
+    return dt >= fromDate && dt <= now;
   };
+
+  const currentOrders = useMemo(
+    () => orders.filter((o) => inRange(o.createdAt)),
+    [orders, fromDate, now]
+  );
+
+  // ===== Currency & formatting =====
+  const CURRENCY =
+    orders[0]?.currency || import.meta.env.VITE_CURRENCY || "AUD";
+
+  const money = useMemo(
+    () =>
+      new Intl.NumberFormat(undefined, {
+        style: "currency",
+        currency: CURRENCY,
+        maximumFractionDigits: 2,
+      }),
+    [CURRENCY]
+  );
+
+  // ===== Revenue helpers =====
+  const isRevenueOrder = (o) => {
+    const s = String(o.status || "").toLowerCase();
+    const p = String(o.paymentStatus || "").toLowerCase();
+    const refunded = Boolean(o.refunded) || toNumber(o.refundAmount) > 0;
+
+    const okStatus =
+      ["paid", "processing", "shipped", "delivered", "completed"].includes(s) ||
+      ["paid", "captured", "succeeded"].includes(p);
+
+    const badStatus = ["cancelled", "canceled", "failed", "refunded"].includes(
+      s
+    );
+
+    return okStatus && !badStatus && !refunded;
+  };
+
+  /**
+   * SIMPLE cents → dollars rule:
+   * - If totalAmount >= 1000, treat it as cents and divide by 100.
+   * - Otherwise assume it's already dollars.
+   * Falls back to computing from line items (already dollars).
+   */
+  const orderTotal = (o) => {
+    const t = toNumber(o.totalAmount);
+    if (t > 0) {
+      return t >= 1000 ? t / 100 : t;
+    }
+
+    // Fallback: compute from items (assumed dollars)
+    const items = o.products || o.items || [];
+    const itemsTotal = items.reduce((sum, it) => {
+      const unit =
+        toNumber(it.price) ||
+        toNumber(it.unitPrice) ||
+        toNumber(it.product?.price);
+      const qty = toNumber(it.quantity ?? it.qty, 1);
+      return sum + unit * qty;
+    }, 0);
+    const shipping = toNumber(o.shippingFee ?? o.shipping);
+    const tax = toNumber(o.tax ?? o.taxAmount);
+    const discount = toNumber(o.discount ?? o.discountAmount);
+    return itemsTotal + shipping + tax - discount;
+  };
+
+  // Current period revenue & stats
+  const revenueOrders = useMemo(
+    () => currentOrders.filter(isRevenueOrder),
+    [currentOrders]
+  );
+
+  const grossRevenue = useMemo(
+    () => revenueOrders.reduce((sum, o) => sum + orderTotal(o), 0),
+    [revenueOrders]
+  );
+
+  // refunds may also be stored in cents; use the same simple rule
+  const refunds = useMemo(
+    () =>
+      currentOrders.reduce((sum, o) => {
+        const r = toNumber(o.refundAmount);
+        if (!r) return sum;
+        return sum + (r >= 1000 ? r / 100 : r);
+      }, 0),
+    [currentOrders]
+  );
+
+  const netRevenue = Math.max(0, grossRevenue - refunds);
+
+  const totalOrders = currentOrders.length;
+  const pendingOrders = currentOrders.filter(
+    (o) => String(o.status || "").toLowerCase() === "pending"
+  ).length;
+  const deliveredOrders = currentOrders.filter((o) =>
+    ["delivered", "completed"].includes(String(o.status || "").toLowerCase())
+  ).length;
+
+  const avgOrderValue =
+    revenueOrders.length > 0 ? grossRevenue / revenueOrders.length : 0;
+
+  // Units sold & unique customers
+  const unitsSold = useMemo(() => {
+    let units = 0;
+    for (const o of revenueOrders) {
+      const items = o.products || o.items || [];
+      for (const it of items) units += toNumber(it.quantity ?? it.qty, 1);
+    }
+    return units;
+  }, [revenueOrders]);
+
+  const uniqueCustomers = useMemo(() => {
+    const set = new Set();
+    for (const o of currentOrders) {
+      const id = idOf(o.userId);
+      if (id) set.add(id);
+    }
+    return set.size;
+  }, [currentOrders]);
+
+  // Previous period trend
+  const prevOrders = useMemo(() => {
+    if (!fromDate) return [];
+    const days = Math.ceil((now - fromDate) / (1000 * 60 * 60 * 24));
+    const prevStart = new Date(fromDate);
+    prevStart.setDate(prevStart.getDate() - days);
+    const prevEnd = new Date(fromDate);
+
+    return orders.filter((o) => {
+      const dt = new Date(o.createdAt);
+      return dt >= prevStart && dt < prevEnd;
+    });
+  }, [orders, fromDate, now]);
+
+  const prevRevenue = useMemo(
+    () =>
+      prevOrders
+        .filter(isRevenueOrder)
+        .reduce((sum, o) => sum + orderTotal(o), 0),
+    [prevOrders]
+  );
+
+  const revenueDeltaPct =
+    prevRevenue > 0 ? ((grossRevenue - prevRevenue) / prevRevenue) * 100 : 0;
+
+  // Other lists
+  const lowStockProducts = products.filter(
+    (p) => toNumber(p.stock) <= 5 && toNumber(p.stock) > 0
+  );
+  const outOfStockProducts = products.filter(
+    (p) => toNumber(p.stock) === 0
+  ).length;
 
   const recentOrders = useMemo(
     () =>
-      [...orders]
-        .sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0))
-        .slice(0, 6),
-    [orders]
+      [...currentOrders]
+        .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+        .slice(0, 5),
+    [currentOrders]
   );
 
+  const lowStockList = useMemo(
+    () => lowStockProducts.slice(0, 5),
+    [lowStockProducts]
+  );
+
+  const pendingReviews = reviews.filter((r) => !r.approved).length;
+
+  const getStatusColor = (status) => {
+    switch (String(status || "").toLowerCase()) {
+      case "pending":
+        return "warning";
+      case "processing":
+      case "shipped":
+        return "info";
+      case "delivered":
+      case "completed":
+        return "success";
+      case "cancelled":
+      case "canceled":
+      case "failed":
+      case "refunded":
+        return "danger";
+      default:
+        return "secondary";
+    }
+  };
+
+  /* ---------------- render ---------------- */
   return (
-    <>
-      {/* Header */}
-      <div
-        className="d-flex flex-wrap gap-2 align-items-center mb-3"
-        style={{ rowGap: 8 }}
-      >
-        <h3 className="mb-0">Dashboard</h3>
-        <div className="ms-auto d-flex gap-2">
+    <div className="container-fluid">
+      {/* Title + Actions */}
+      <div className="d-flex flex-wrap justify-content-between align-items-center mb-4 gap-2">
+        <h2 className="mb-0">Admin Dashboard</h2>
+        <div className="d-flex gap-2">
           <select
-            className="form-select"
+            className="form-select form-select-sm"
             value={range}
             onChange={(e) => setRange(e.target.value)}
-            style={{ width: 180 }}
-            title="Time range"
+            aria-label="Select time range"
           >
-            <option value="7">Last 7 days</option>
-            <option value="30">Last 30 days</option>
+            <option value="7d">Last 7 days</option>
+            <option value="30d">Last 30 days</option>
+            <option value="90d">Last 90 days</option>
+            <option value="all">All time</option>
           </select>
-          <button className="btn btn-outline-secondary" onClick={load}>
-            Refresh
+          <button
+            className="btn btn-outline-primary btn-sm"
+            onClick={loadDashboardData}
+            disabled={loading}
+          >
+            {loading ? "Refreshing..." : "Refresh Data"}
           </button>
         </div>
       </div>
 
-      {err && <div className="alert alert-danger">{err}</div>}
+      {error && (
+        <div className="alert alert-danger alert-dismissible" role="alert">
+          <strong>Error:</strong> {error}
+          <button
+            type="button"
+            className="btn-close"
+            onClick={() => setError("")}
+          ></button>
+        </div>
+      )}
 
       {loading ? (
-        <div className="py-5 text-center">Loading…</div>
+        <div className="text-center py-5">
+          <div className="spinner-border text-primary" role="status">
+            <span className="visually-hidden">Loading...</span>
+          </div>
+          <p className="mt-2">Loading dashboard data...</p>
+        </div>
       ) : (
         <>
-          {/* KPIs */}
-          <div className="row g-3 mb-3">
-            <div className="col-12 col-sm-6 col-lg-3">
-              <div className="p-3 border rounded-3 bg-white h-100">
-                <div className="text-muted">Revenue ({range}d)</div>
-                <div style={{ fontSize: 24, fontWeight: 800 }}>
-                  {moneyAUD(revenueRange)}
-                </div>
-                <div className="text-muted" style={{ fontSize: 12 }}>
-                  All‑time: {moneyAUD(revenueAll)}
-                </div>
-              </div>
-            </div>
-
-            <div className="col-12 col-sm-6 col-lg-3">
-              <div className="p-3 border rounded-3 bg-white h-100">
-                <div className="text-muted">Orders ({range}d)</div>
-                <div style={{ fontSize: 24, fontWeight: 800 }}>
-                  {fmtInt(totalOrdersRange)}
-                </div>
-                <div className="text-muted" style={{ fontSize: 12 }}>
-                  All‑time: {fmtInt(totalOrders)}
-                </div>
-              </div>
-            </div>
-
-            <div className="col-12 col-sm-6 col-lg-3">
-              <div className="p-3 border rounded-3 bg-white h-100">
-                <div className="text-muted">Pending Orders</div>
-                <div style={{ fontSize: 24, fontWeight: 800 }}>
-                  {fmtInt(pendingOrders)}
-                </div>
-                <div className="text-muted" style={{ fontSize: 12 }}>
-                  Update in Orders page
+          {/* ===== KPI Row ===== */}
+          <div className="row mb-4">
+            <div className="col-md-3 mb-3">
+              <div className="card text-white bg-primary">
+                <div className="card-body">
+                  <h5 className="card-title d-flex justify-content-between">
+                    <span>Gross Revenue</span>
+                    <span className="badge bg-light text-dark">{range}</span>
+                  </h5>
+                  <h3 className="mb-1">{money.format(grossRevenue)}</h3>
+                  <small
+                    className={
+                      revenueDeltaPct >= 0 ? "text-light" : "text-warning"
+                    }
+                  >
+                    {prevRevenue > 0
+                      ? `${revenueDeltaPct >= 0 ? "▲" : "▼"} ${Math.abs(
+                          revenueDeltaPct
+                        ).toFixed(1)}% vs prev`
+                      : "No prior period"}
+                  </small>
                 </div>
               </div>
             </div>
 
-            <div className="col-12 col-sm-6 col-lg-3">
-              <div className="p-3 border rounded-3 bg-white h-100">
-                <div className="text-muted">Reviews Awaiting</div>
-                <div style={{ fontSize: 24, fontWeight: 800 }}>
-                  {fmtInt(pendingReviews)}
-                </div>
-                <div className="text-muted" style={{ fontSize: 12 }}>
-                  Moderate in Reviews page
+            <div className="col-md-3 mb-3">
+              <div className="card text-white bg-dark">
+                <div className="card-body">
+                  <h5 className="card-title">Net Revenue</h5>
+                  <h3 className="mb-1">{money.format(netRevenue)}</h3>
+                  <small>{money.format(refunds)} in refunds</small>
                 </div>
               </div>
             </div>
-          </div>
 
-          {/* Charts row 1: Revenue trend + Orders per day */}
-          <div className="row g-3 mb-3">
-            <div className="col-12 col-lg-7">
-              <div className="p-3 border rounded-3 bg-white h-100">
-                <div className="d-flex justify-content-between align-items-center mb-2">
-                  <strong>Revenue trend (AUD)</strong>
-                  <span className="text-muted" style={{ fontSize: 12 }}>
-                    Total:{" "}
-                    {moneyAUD(revenueSeries.reduce((s, d) => s + d.value, 0))}
-                  </span>
+            <div className="col-md-3 mb-3">
+              <div className="card text-white bg-success">
+                <div className="card-body">
+                  <h5 className="card-title">Orders</h5>
+                  <h3 className="mb-1">{currentOrders.length}</h3>
+                  <small>{pendingOrders} pending</small>
                 </div>
-                <LineChart data={revenueSeries} />
               </div>
             </div>
 
-            <div className="col-12 col-lg-5">
-              <div className="p-3 border rounded-3 bg-white h-100">
-                <div className="d-flex justify-content-between align-items-center mb-2">
-                  <strong>Orders per day</strong>
-                  <span className="text-muted" style={{ fontSize: 12 }}>
-                    Total:{" "}
-                    {fmtInt(ordersSeries.reduce((s, d) => s + d.value, 0))}
-                  </span>
+            <div className="col-md-3 mb-3">
+              <div className="card text-white bg-info">
+                <div className="card-body">
+                  <h5 className="card-title">AOV / Units / Customers</h5>
+                  <h6 className="mb-1">{money.format(avgOrderValue)} AOV</h6>
+                  <small className="d-block">{unitsSold} units sold</small>
+                  <small className="d-block">{uniqueCustomers} customers</small>
                 </div>
-                <BarChart data={ordersSeries} barColor="#6f42c1" />
               </div>
             </div>
           </div>
 
-          {/* Charts row 2: Status donut + Top products */}
-          <div className="row g-3 mb-3">
-            <div className="col-12 col-lg-5">
-              <div className="p-3 border rounded-3 bg-white h-100">
-                <div className="d-flex justify-content-between align-items-center mb-2">
-                  <strong>Order status ({range}d)</strong>
+          {/* ===== Stats Row ===== */}
+          <div className="row mb-4">
+            {/* Order Stats */}
+            <div className="col-md-6 mb-3">
+              <div className="card">
+                <div className="card-header bg-light">
+                  <h5 className="mb-0">Order Statistics</h5>
                 </div>
-                <Donut valueMap={donutData} />
-              </div>
-            </div>
-
-            <div className="col-12 col-lg-7">
-              <div className="p-3 border rounded-3 bg-white h-100">
-                <div className="d-flex justify-content-between align-items-center mb-2">
-                  <strong>Top products by qty ({range}d)</strong>
-                </div>
-                {topProducts.length ? (
-                  <BarChart data={topProducts} barColor="#fd7e14" />
-                ) : (
-                  <div className="text-muted py-4 text-center">
-                    No product sales in range.
+                <div className="card-body">
+                  <div className="row">
+                    <div className="col-6">
+                      <p className="mb-2">
+                        <strong>Delivered/Completed:</strong>
+                        <br />
+                        {deliveredOrders} (
+                        {totalOrders > 0
+                          ? ((deliveredOrders / totalOrders) * 100).toFixed(1)
+                          : 0}
+                        %)
+                      </p>
+                      <p className="mb-2">
+                        <strong>Pending:</strong>
+                        <br />
+                        {pendingOrders} (
+                        {totalOrders > 0
+                          ? ((pendingOrders / totalOrders) * 100).toFixed(1)
+                          : 0}
+                        %)
+                      </p>
+                    </div>
+                    <div className="col-6">
+                      <p className="mb-2">
+                        <strong>Gross Revenue:</strong>
+                        <br />
+                        {money.format(grossRevenue)}
+                      </p>
+                      <p className="mb-2">
+                        <strong>Average Order Value:</strong>
+                        <br />
+                        {money.format(avgOrderValue)}
+                      </p>
+                    </div>
                   </div>
-                )}
+                </div>
+              </div>
+            </div>
+
+            {/* Inventory Stats */}
+            <div className="col-md-6 mb-3">
+              <div className="card">
+                <div className="card-header bg-light">
+                  <h5 className="mb-0">Inventory Statistics</h5>
+                </div>
+                <div className="card-body">
+                  <div className="row">
+                    <div className="col-6">
+                      <p className="mb-2">
+                        <strong>Total Products:</strong>
+                        <br />
+                        {products.length}
+                      </p>
+                      <p className="mb-2">
+                        <strong>In Stock:</strong>
+                        <br />
+                        {products.length - outOfStockProducts}
+                      </p>
+                    </div>
+                    <div className="col-6">
+                      <p className="mb-2">
+                        <strong>Low Stock:</strong>
+                        <br />
+                        <span className="text-warning">
+                          {lowStockProducts.length} products
+                        </span>
+                      </p>
+                      <p className="mb-2">
+                        <strong>Out of Stock:</strong>
+                        <br />
+                        <span className="text-danger">
+                          {outOfStockProducts} products
+                        </span>
+                      </p>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
 
-          {/* Bottom row: Recent orders + Low stock */}
-          <div className="row g-3">
-            <div className="col-12 col-lg-7">
-              <div className="p-3 border rounded-3 bg-white h-100">
-                <div className="d-flex justify-content-between align-items-center mb-2">
-                  <strong>Recent orders</strong>
-                  <a href="/orders" className="link-primary">
-                    View all
+          {/* ===== Recent Orders ===== */}
+          <div className="row mb-4">
+            <div className="col-md-8">
+              <div className="card">
+                <div className="card-header bg-light d-flex justify-content-between align-items-center">
+                  <h5 className="mb-0">Recent Orders</h5>
+                  <a href="/orders" className="btn btn-sm btn-primary">
+                    View All
                   </a>
                 </div>
-                {recentOrders.length === 0 ? (
-                  <div className="text-muted py-4 text-center">
-                    No recent orders.
-                  </div>
-                ) : (
-                  <div className="table-responsive">
-                    <table className="table table-sm align-middle">
-                      <thead className="table-light">
-                        <tr>
-                          <th>User</th>
-                          <th>Total (AUD)</th>
-                          <th>Status</th>
-                          <th>Date</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {recentOrders.map((o) => (
-                          <tr key={o._id}>
-                            <td
-                              className="text-truncate"
-                              style={{ maxWidth: 240 }}
-                            >
-                              {o.userId?.email || "—"}
-                            </td>
-                            <td>{moneyAUD(o.totalAmount)}</td>
-                            <td>
-                              <span style={badgeFor(o.status)}>{o.status}</span>
-                            </td>
-                            <td>
-                              {o.createdAt
-                                ? new Date(o.createdAt).toLocaleDateString()
-                                : "—"}
-                            </td>
+                <div className="card-body">
+                  {recentOrders.length === 0 ? (
+                    <p className="text-muted text-center">
+                      No orders in this range
+                    </p>
+                  ) : (
+                    <div className="table-responsive">
+                      <table className="table table-hover">
+                        <thead>
+                          <tr>
+                            <th>Order ID</th>
+                            <th>Customer</th>
+                            <th>Amount</th>
+                            <th>Status</th>
+                            <th>Date</th>
                           </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
+                        </thead>
+                        <tbody>
+                          {recentOrders.map((order) => (
+                            <tr key={order._id}>
+                              <td>
+                                <small>
+                                  {order._id.slice(-8).toUpperCase()}
+                                </small>
+                              </td>
+                              <td>
+                                <small>{order.userId?.email || "Guest"}</small>
+                              </td>
+                              <td>
+                                <strong>
+                                  {money.format(orderTotal(order))}
+                                </strong>
+                              </td>
+                              <td>
+                                <span
+                                  className={`badge bg-${getStatusColor(
+                                    order.status
+                                  )}`}
+                                >
+                                  {order.status}
+                                </span>
+                              </td>
+                              <td>
+                                <small>
+                                  {new Date(
+                                    order.createdAt
+                                  ).toLocaleDateString()}
+                                </small>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
 
-            <div className="col-12 col-lg-5">
-              <div className="p-3 border rounded-3 bg-white h-100">
-                <div className="d-flex justify-content-between align-items-center mb-2">
-                  <strong>Low stock (≤5)</strong>
-                  <a href="/products" className="link-primary">
+            {/* ===== Low Stock Alerts ===== */}
+            <div className="col-md-4">
+              <div className="card">
+                <div className="card-header bg-light d-flex justify-content-between align-items-center">
+                  <h5 className="mb-0">Low Stock Alert</h5>
+                  <a href="/products" className="btn btn-sm btn-warning">
                     Manage
                   </a>
                 </div>
-                {lowStock.length === 0 ? (
-                  <div className="text-muted py-4 text-center">
-                    Inventory looks healthy.
-                  </div>
-                ) : (
-                  <ul className="list-group">
-                    {lowStock.map((p) => (
-                      <li
-                        key={p._id}
-                        className="list-group-item d-flex justify-content-between align-items-center"
-                      >
-                        <span
-                          className="text-truncate"
-                          style={{ maxWidth: 260 }}
+                <div className="card-body">
+                  {lowStockList.length === 0 ? (
+                    <p className="text-muted text-center">
+                      All products well stocked!
+                    </p>
+                  ) : (
+                    <ul className="list-group list-group-flush">
+                      {lowStockList.map((p) => (
+                        <li
+                          key={p._id}
+                          className="list-group-item d-flex justify-content-between align-items-center px-0"
                         >
-                          {p.name}
-                        </span>
-                        <span className="badge bg-warning text-dark rounded-pill">
-                          {p.stock ?? 0}
-                        </span>
-                      </li>
-                    ))}
-                  </ul>
-                )}
+                          <span
+                            className="text-truncate"
+                            style={{ maxWidth: 200 }}
+                          >
+                            {p.name}
+                          </span>
+                          <span className="badge bg-warning text-dark rounded-pill">
+                            {p.stock} left
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* ===== Quick Actions ===== */}
+          <div className="row">
+            <div className="col-12">
+              <div className="card">
+                <div className="card-header bg-light">
+                  <h5 className="mb-0">Quick Actions</h5>
+                </div>
+                <div className="card-body">
+                  <div className="d-flex gap-2 flex-wrap">
+                    <a href="/products" className="btn btn-primary">
+                      Add New Product
+                    </a>
+                    <a href="/categories" className="btn btn-secondary">
+                      Manage Categories
+                    </a>
+                    <a href="/orders" className="btn btn-info">
+                      View Orders
+                    </a>
+                    <a href="/reviews" className="btn btn-warning">
+                      Moderate Reviews
+                    </a>
+                    <a href="/users" className="btn btn-success">
+                      Manage Users
+                    </a>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
         </>
       )}
-    </>
+    </div>
   );
 }
