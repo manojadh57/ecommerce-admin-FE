@@ -2,9 +2,6 @@ import { useEffect, useMemo, useState } from "react";
 import { Modal, Spinner } from "react-bootstrap";
 import api from "../services/api"; // MUST point to /api/admin/v1 and set admin JWT
 
-/* ========================
-   helpers
-======================== */
 const asAmount = (cents) =>
   ((Number(cents) || 0) / 100).toLocaleString(undefined, {
     minimumFractionDigits: 2,
@@ -24,9 +21,6 @@ const statusBadge = (s) => {
   return ["warning", "Pending"];
 };
 
-/* ========================
-   page
-======================== */
 export default function AdminOrdersPage() {
   // data
   const [orders, setOrders] = useState([]);
@@ -46,7 +40,6 @@ export default function AdminOrdersPage() {
   const [detailLoading, setDetailLoading] = useState(false);
   const [detailErr, setDetailErr] = useState("");
 
-  /* ---------- load list ---------- */
   const load = async () => {
     try {
       setLoading(true);
@@ -100,7 +93,6 @@ export default function AdminOrdersPage() {
     }
   };
 
-  /* ---------- modal handlers ---------- */
   const openDetail = async (id) => {
     try {
       setShowDetail(true);
@@ -121,9 +113,6 @@ export default function AdminOrdersPage() {
     setDetailErr("");
   };
 
-  /* ========================
-     render
-  ======================== */
   return (
     <div className="container-fluid">
       {/* header */}

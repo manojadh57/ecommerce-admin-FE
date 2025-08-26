@@ -3,7 +3,7 @@ import { Table, Button, Modal, Spinner, Alert } from "react-bootstrap";
 import api from "../services/api";
 import CategoryForm from "../components/CategoryForm";
 
-/* ---------- formatters ---------- */
+//formatters//
 const LOCALE = import.meta.env.VITE_LOCALE || "en-AU";
 const CURRENCY = (import.meta.env.VITE_CURRENCY || "AUD").toUpperCase();
 
@@ -15,9 +15,8 @@ const fmtMoney = new Intl.NumberFormat(LOCALE, {
   maximumFractionDigits: 2,
 });
 
-/* ---------- helpers ---------- */
+//helpers//
 function idOf(parentLike) {
-  // Accept: string | {_id:string} | null/undefined
   if (!parentLike) return null;
   if (typeof parentLike === "string") return parentLike;
   if (typeof parentLike === "object" && parentLike._id) return parentLike._id;
@@ -42,7 +41,7 @@ export default function CategoryManagementPage() {
   const [prodLoading, setProdLoading] = useState(false);
   const [prodError, setProdError] = useState("");
 
-  /* ---------- data load ---------- */
+  //data load//
   const fetchCats = async () => {
     try {
       setPageLoading(true);
@@ -63,13 +62,11 @@ export default function CategoryManagementPage() {
 
   useEffect(() => {
     fetchCats();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  /* ---------- derived sets ---------- */
   const parents = useMemo(() => cats.filter((c) => !idOf(c.parent)), [cats]);
 
-  // Map: parentId -> sum(child.productCount)
+  // Map: parents to child
   const childCountMap = useMemo(() => {
     const map = new Map();
     for (const c of cats) {
@@ -90,7 +87,7 @@ export default function CategoryManagementPage() {
     return parents.filter((p) => p.name?.toLowerCase().includes(txt));
   }, [parents, q]);
 
-  /* ---------- actions ---------- */
+  //actions//
   const saveCat = async (payload) => {
     try {
       setActionLoading(true);
@@ -182,7 +179,6 @@ export default function CategoryManagementPage() {
     }
   };
 
-  /* ---------- render ---------- */
   return (
     <>
       {/* header */}

@@ -1,9 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import api from "../services/api.js";
 
-/* =========================
-   Helpers (units & safety)
-   ========================= */
+// Normalize user object from API
 
 function normalizeUser(u) {
   return {

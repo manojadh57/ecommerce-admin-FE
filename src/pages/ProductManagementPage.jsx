@@ -23,8 +23,8 @@ export default function ProductManagementPage() {
 
   // Search and filter
   const [q, setQ] = useState("");
-  const [stockFilter, setStockFilter] = useState("all"); // all | low | outOfStock | inStock
-  const [sortBy, setSortBy] = useState("name"); // name | price | stock | recent
+  const [stockFilter, setStockFilter] = useState("all");
+  const [sortBy, setSortBy] = useState("name");
 
   // Bulk operations
   const [selectedIds, setSelectedIds] = useState(new Set());
@@ -42,7 +42,7 @@ export default function ProductManagementPage() {
         ? data.products
         : [];
       setItems(list);
-      setSelectedIds(new Set()); // Clear selections on reload
+      setSelectedIds(new Set());
     } catch (e) {
       setErr(e.response?.data?.message || e.message);
     } finally {

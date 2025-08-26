@@ -3,7 +3,7 @@ import api from "../services/api.js";
 
 const ROOT = import.meta.env.VITE_ROOT_URL || "http://localhost:8000";
 
-/* ===== helpers ===== */
+//helpers
 const placeImg = "https://placehold.co/120x120?text=No+Image";
 
 function normalizeImagePath(p) {

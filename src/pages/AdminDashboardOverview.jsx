@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import api from "../services/api.js";
 
-/* ---------------- helpers ---------------- */
+// helpers
 function toNumber(x, d = 0) {
   const n = Number(x);
   return Number.isFinite(n) ? n : d;
@@ -13,11 +13,8 @@ function idOf(userLike) {
   return null;
 }
 
-/* =========================================================
-   AdminDashboardOverview
-   ========================================================= */
 export default function AdminDashboardOverview() {
-  // ===== State =====
+  // state
   const [orders, setOrders] = useState([]);
   const [products, setProducts] = useState([]);
   const [reviews, setReviews] = useState([]);
@@ -58,7 +55,7 @@ export default function AdminDashboardOverview() {
     loadDashboardData();
   }, []);
 
-  // ===== Time range =====
+  // Time range
   const now = useMemo(() => new Date(), []);
   const fromDate = useMemo(() => {
     if (range === "all") return null;
@@ -80,7 +77,7 @@ export default function AdminDashboardOverview() {
     [orders, fromDate, now]
   );
 
-  // ===== Currency & formatting =====
+  // Currency & formatting
   const CURRENCY =
     orders[0]?.currency || import.meta.env.VITE_CURRENCY || "AUD";
 
@@ -94,7 +91,7 @@ export default function AdminDashboardOverview() {
     [CURRENCY]
   );
 
-  // ===== Revenue helpers =====
+  // Revenue order check
   const isRevenueOrder = (o) => {
     const s = String(o.status || "").toLowerCase();
     const p = String(o.paymentStatus || "").toLowerCase();
@@ -111,12 +108,7 @@ export default function AdminDashboardOverview() {
     return okStatus && !badStatus && !refunded;
   };
 
-  /**
-   * SIMPLE cents → dollars rule:
-   * - If totalAmount >= 1000, treat it as cents and divide by 100.
-   * - Otherwise assume it's already dollars.
-   * Falls back to computing from line items (already dollars).
-   */
+  // Simple order total calculation
   const orderTotal = (o) => {
     const t = toNumber(o.totalAmount);
     if (t > 0) {
@@ -261,7 +253,6 @@ export default function AdminDashboardOverview() {
     }
   };
 
-  /* ---------------- render ---------------- */
   return (
     <div className="container-fluid">
       {/* Title + Actions */}
@@ -366,7 +357,6 @@ export default function AdminDashboardOverview() {
             </div>
           </div>
 
-          {/* ===== Stats Row ===== */}
           <div className="row mb-4">
             {/* Order Stats */}
             <div className="col-md-6 mb-3">
