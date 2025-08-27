@@ -1,0 +1,28 @@
+/* src/pages/admin/admin-auth.css */
+.auth-page {
+  min-height: 100vh;
+  padding: 24px;
+  background:
+    radial-gradient(1200px 600px at 10% -10%, rgba(13, 202, 240, 0.18), transparent 50%),
+    radial-gradient(1000px 600px at 110% 110%, rgba(99, 102, 241, 0.12), transparent 40%),
+    linear-gradient(180deg, #0b1220 0%, #0f172a 100%); /* matches sidebar vibe */
+}
+
+.auth-card {
+  width: 100%;
+  max-width: 420px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 16px;
+  overflow: hidden;
+}
+
+.auth-card .card-body {
+  background: #ffffff;
+  border-radius: 16px;
+}
+
+@media (max-width: 480px) {
+  .auth-card {
+    max-width: 92%;
+  }
+}

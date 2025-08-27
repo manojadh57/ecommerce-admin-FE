@@ -1,7 +1,8 @@
+// src/pages/admin/AdminDashboardOverview.jsx
 import { useEffect, useMemo, useState } from "react";
 import api from "../services/api.js";
 
-// helpers
+// ===== helpers (same as yours)
 function toNumber(x, d = 0) {
   const n = Number(x);
   return Number.isFinite(n) ? n : d;
@@ -14,7 +15,7 @@ function idOf(userLike) {
 }
 
 export default function AdminDashboardOverview() {
-  // state
+  // ===== state
   const [orders, setOrders] = useState([]);
   const [products, setProducts] = useState([]);
   const [reviews, setReviews] = useState([]);
@@ -22,7 +23,7 @@ export default function AdminDashboardOverview() {
   const [error, setError] = useState("");
   const [range, setRange] = useState("30d"); // "7d" | "30d" | "90d" | "all"
 
-  // ===== Load =====
+  // ===== data load
   const loadDashboardData = async () => {
     try {
       setLoading(true);
@@ -32,15 +33,19 @@ export default function AdminDashboardOverview() {
         api.get("/products"),
         api.get("/reviews"),
       ]);
+
       const ordersData = Array.isArray(ordersRes.data)
         ? ordersRes.data
         : ordersRes.data?.orders || [];
+
       const productsData = Array.isArray(productsRes.data)
         ? productsRes.data
         : productsRes.data?.products || [];
+
       const reviewsData = Array.isArray(reviewsRes.data)
         ? reviewsRes.data
         : reviewsRes.data?.reviews || [];
+
       setOrders(ordersData);
       setProducts(productsData);
       setReviews(reviewsData);
@@ -53,9 +58,10 @@ export default function AdminDashboardOverview() {
 
   useEffect(() => {
     loadDashboardData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Time range
+  // ===== time range
   const now = useMemo(() => new Date(), []);
   const fromDate = useMemo(() => {
     if (range === "all") return null;
@@ -77,10 +83,9 @@ export default function AdminDashboardOverview() {
     [orders, fromDate, now]
   );
 
-  // Currency & formatting
+  // ===== currency & formatting
   const CURRENCY =
     orders[0]?.currency || import.meta.env.VITE_CURRENCY || "AUD";
-
   const money = useMemo(
     () =>
       new Intl.NumberFormat(undefined, {
@@ -91,7 +96,7 @@ export default function AdminDashboardOverview() {
     [CURRENCY]
   );
 
-  // Revenue order check
+  // ===== revenue rules (same semantics)
   const isRevenueOrder = (o) => {
     const s = String(o.status || "").toLowerCase();
     const p = String(o.paymentStatus || "").toLowerCase();
@@ -108,12 +113,10 @@ export default function AdminDashboardOverview() {
     return okStatus && !badStatus && !refunded;
   };
 
-  // Simple order total calculation
   const orderTotal = (o) => {
+    // If totalAmount exists, auto-detect cents vs dollars
     const t = toNumber(o.totalAmount);
-    if (t > 0) {
-      return t >= 1000 ? t / 100 : t;
-    }
+    if (t > 0) return t >= 1000 ? t / 100 : t;
 
     // Fallback: compute from items (assumed dollars)
     const items = o.products || o.items || [];
@@ -125,13 +128,14 @@ export default function AdminDashboardOverview() {
       const qty = toNumber(it.quantity ?? it.qty, 1);
       return sum + unit * qty;
     }, 0);
+
     const shipping = toNumber(o.shippingFee ?? o.shipping);
     const tax = toNumber(o.tax ?? o.taxAmount);
     const discount = toNumber(o.discount ?? o.discountAmount);
     return itemsTotal + shipping + tax - discount;
   };
 
-  // Current period revenue & stats
+  // ===== current period stats
   const revenueOrders = useMemo(
     () => currentOrders.filter(isRevenueOrder),
     [currentOrders]
@@ -142,7 +146,6 @@ export default function AdminDashboardOverview() {
     [revenueOrders]
   );
 
-  // refunds may also be stored in cents; use the same simple rule
   const refunds = useMemo(
     () =>
       currentOrders.reduce((sum, o) => {
@@ -159,6 +162,7 @@ export default function AdminDashboardOverview() {
   const pendingOrders = currentOrders.filter(
     (o) => String(o.status || "").toLowerCase() === "pending"
   ).length;
+
   const deliveredOrders = currentOrders.filter((o) =>
     ["delivered", "completed"].includes(String(o.status || "").toLowerCase())
   ).length;
@@ -166,7 +170,7 @@ export default function AdminDashboardOverview() {
   const avgOrderValue =
     revenueOrders.length > 0 ? grossRevenue / revenueOrders.length : 0;
 
-  // Units sold & unique customers
+  // ===== extra stats
   const unitsSold = useMemo(() => {
     let units = 0;
     for (const o of revenueOrders) {
@@ -185,7 +189,7 @@ export default function AdminDashboardOverview() {
     return set.size;
   }, [currentOrders]);
 
-  // Previous period trend
+  // ===== previous period trend
   const prevOrders = useMemo(() => {
     if (!fromDate) return [];
     const days = Math.ceil((now - fromDate) / (1000 * 60 * 60 * 24));
@@ -210,7 +214,7 @@ export default function AdminDashboardOverview() {
   const revenueDeltaPct =
     prevRevenue > 0 ? ((grossRevenue - prevRevenue) / prevRevenue) * 100 : 0;
 
-  // Other lists
+  // ===== inventory & reviews
   const lowStockProducts = products.filter(
     (p) => toNumber(p.stock) <= 5 && toNumber(p.stock) > 0
   );
@@ -255,7 +259,7 @@ export default function AdminDashboardOverview() {
 
   return (
     <div className="container-fluid">
-      {/* Title + Actions */}
+      {/* Header */}
       <div className="d-flex flex-wrap justify-content-between align-items-center mb-4 gap-2">
         <h2 className="mb-0">Admin Dashboard</h2>
         <div className="d-flex gap-2">
@@ -280,6 +284,7 @@ export default function AdminDashboardOverview() {
         </div>
       </div>
 
+      {/* Error */}
       {error && (
         <div className="alert alert-danger alert-dismissible" role="alert">
           <strong>Error:</strong> {error}
@@ -291,6 +296,7 @@ export default function AdminDashboardOverview() {
         </div>
       )}
 
+      {/* Loading */}
       {loading ? (
         <div className="text-center py-5">
           <div className="spinner-border text-primary" role="status">
@@ -339,7 +345,7 @@ export default function AdminDashboardOverview() {
               <div className="card text-white bg-success">
                 <div className="card-body">
                   <h5 className="card-title">Orders</h5>
-                  <h3 className="mb-1">{currentOrders.length}</h3>
+                  <h3 className="mb-1">{totalOrders}</h3>
                   <small>{pendingOrders} pending</small>
                 </div>
               </div>
@@ -357,6 +363,7 @@ export default function AdminDashboardOverview() {
             </div>
           </div>
 
+          {/* ===== Order & Inventory Stats ===== */}
           <div className="row mb-4">
             {/* Order Stats */}
             <div className="col-md-6 mb-3">
@@ -445,7 +452,7 @@ export default function AdminDashboardOverview() {
             </div>
           </div>
 
-          {/* ===== Recent Orders ===== */}
+          {/* ===== Recent Orders & Low Stock ===== */}
           <div className="row mb-4">
             <div className="col-md-8">
               <div className="card">
@@ -477,7 +484,7 @@ export default function AdminDashboardOverview() {
                             <tr key={order._id}>
                               <td>
                                 <small>
-                                  {order._id.slice(-8).toUpperCase()}
+                                  {String(order._id).slice(-8).toUpperCase()}
                                 </small>
                               </td>
                               <td>
@@ -514,7 +521,7 @@ export default function AdminDashboardOverview() {
               </div>
             </div>
 
-            {/* ===== Low Stock Alerts ===== */}
+            {/* Low Stock Alerts */}
             <div className="col-md-4">
               <div className="card">
                 <div className="card-header bg-light d-flex justify-content-between align-items-center">
@@ -554,31 +561,30 @@ export default function AdminDashboardOverview() {
           </div>
 
           {/* ===== Quick Actions ===== */}
-          <div className="row">
-            <div className="col-12">
-              <div className="card">
-                <div className="card-header bg-light">
-                  <h5 className="mb-0">Quick Actions</h5>
-                </div>
-                <div className="card-body">
-                  <div className="d-flex gap-2 flex-wrap">
-                    <a href="/products" className="btn btn-primary">
-                      Add New Product
-                    </a>
-                    <a href="/categories" className="btn btn-secondary">
-                      Manage Categories
-                    </a>
-                    <a href="/orders" className="btn btn-info">
-                      View Orders
-                    </a>
-                    <a href="/reviews" className="btn btn-warning">
-                      Moderate Reviews
-                    </a>
-                    <a href="/users" className="btn btn-success">
-                      Manage Users
-                    </a>
-                  </div>
-                </div>
+          <div className="card">
+            <div className="card-header bg-light">
+              <h5 className="mb-0">Quick Actions</h5>
+            </div>
+            <div className="card-body">
+              <div className="d-flex gap-2 flex-wrap">
+                <a href="/products" className="btn btn-primary">
+                  Add New Product
+                </a>
+                <a href="/categories" className="btn btn-secondary">
+                  Manage Categories
+                </a>
+                <a href="/orders" className="btn btn-info">
+                  View Orders
+                </a>
+                <a href="/reviews" className="btn btn-warning">
+                  Moderate Reviews
+                </a>
+                <a href="/users" className="btn btn-success">
+                  Manage Users
+                </a>
+                <span className="badge bg-secondary align-self-center">
+                  {pendingReviews} pending reviews
+                </span>
               </div>
             </div>
           </div>

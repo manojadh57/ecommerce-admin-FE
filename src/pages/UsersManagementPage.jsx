@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from "react";
 import api from "../services/api.js";
 
 // Normalize user object from API
-
 function normalizeUser(u) {
   return {
     id: u._id || u.id,
@@ -258,56 +257,30 @@ export default function UsersManagementPage() {
      ========================= */
 
   return (
-    <>
-      <div className="d-flex flex-wrap gap-2 align-items-center mb-3">
-        <h3 className="mb-0">Users</h3>
-
-        <div className="d-flex flex-wrap gap-2">
-          <span className="badge bg-secondary">All: {totals.all}</span>
-          <span className="badge bg-success">Active: {totals.active}</span>
-          <span className="badge bg-danger">Inactive: {totals.inactive}</span>
-          <span className="badge bg-info text-dark">
-            Total Spend (shown): {money(totals.totalSpendShown)}
-          </span>
+    <div className="container-fluid">
+      {/* ===== Header (aligned with other pages) ===== */}
+      <div className="d-flex flex-wrap justify-content-between align-items-center mb-4 gap-2">
+        <div className="d-flex align-items-center flex-wrap gap-2">
+          <h2 className="mb-0">Users</h2>
+          <div className="d-flex flex-wrap gap-2 ms-2">
+            <span className="badge bg-secondary">All: {totals.all}</span>
+            <span className="badge bg-success">Active: {totals.active}</span>
+            <span className="badge bg-danger">Inactive: {totals.inactive}</span>
+            <span className="badge bg-info text-dark">
+              Total Spend (shown): {money(totals.totalSpendShown)}
+            </span>
+          </div>
         </div>
 
-        <div className="ms-auto d-flex flex-wrap gap-2">
-          <input
-            className="form-control"
-            placeholder="Search email"
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-            style={{ minWidth: 240 }}
-            aria-label="Search by email"
-          />
-          <select
-            className="form-select"
-            value={filter}
-            onChange={(e) => setFilter(e.target.value)}
-            aria-label="Filter users"
-            style={{ width: 140 }}
+        <div className="d-flex gap-2 flex-wrap">
+          <button
+            className="btn btn-sm btn-outline-secondary"
+            onClick={() => load()}
           >
-            <option value="all">All</option>
-            <option value="active">Active</option>
-            <option value="inactive">Inactive</option>
-          </select>
-          <select
-            className="form-select"
-            value={sortBy}
-            onChange={(e) => setSortBy(e.target.value)}
-            aria-label="Sort users"
-            style={{ width: 170 }}
-          >
-            <option value="newest">Newest</option>
-            <option value="oldest">Oldest</option>
-            <option value="spentDesc">Spent: high → low</option>
-            <option value="spentAsc">Spent: low → high</option>
-          </select>
-          <button className="btn btn-outline-secondary" onClick={() => load()}>
             Refresh
           </button>
           <button
-            className="btn btn-outline-primary"
+            className="btn btn-sm btn-outline-primary"
             onClick={() => exportUsersCSV(filtered)}
             disabled={!filtered.length}
             title="Export visible rows"
@@ -317,13 +290,17 @@ export default function UsersManagementPage() {
         </div>
       </div>
 
+      {/* ===== Error ===== */}
       {err && (
-        <div className="alert alert-danger d-flex justify-content-between align-items-center">
+        <div
+          className="alert alert-danger d-flex justify-content-between align-items-center"
+          role="alert"
+        >
           <span>
             <strong>Error:</strong> {err}
           </span>
           <button
-            className="btn btn-sm btn-outline-light"
+            className="btn btn-sm btn-outline-dark"
             onClick={() => load()}
           >
             Retry
@@ -331,76 +308,156 @@ export default function UsersManagementPage() {
         </div>
       )}
 
+      {/* ===== Toolbar (light box; search/filter/sort) ===== */}
+      <div className="border rounded p-3 bg-light mb-3">
+        <div className="d-flex flex-wrap gap-2 justify-content-between">
+          <div className="d-flex flex-wrap gap-2">
+            <input
+              className="form-control form-control-sm"
+              placeholder="Search email…"
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              style={{ minWidth: 240 }}
+              aria-label="Search by email"
+            />
+            <select
+              className="form-select form-select-sm"
+              value={filter}
+              onChange={(e) => setFilter(e.target.value)}
+              aria-label="Filter users"
+              style={{ width: 140 }}
+            >
+              <option value="all">All</option>
+              <option value="active">Active</option>
+              <option value="inactive">Inactive</option>
+            </select>
+            <select
+              className="form-select form-select-sm"
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value)}
+              aria-label="Sort users"
+              style={{ width: 170 }}
+            >
+              <option value="newest">Newest</option>
+              <option value="oldest">Oldest</option>
+              <option value="spentDesc">Spent: high → low</option>
+              <option value="spentAsc">Spent: low → high</option>
+            </select>
+          </div>
+          <div className="text-muted small align-self-center">
+            Showing {filtered.length} of {usersWithSpend.length} users
+          </div>
+        </div>
+      </div>
+
+      {/* ===== Loading / Empty ===== */}
       {loading ? (
-        <div className="py-5 text-center">Loading…</div>
+        <div className="py-5 text-center">
+          <div className="spinner-border text-primary" role="status">
+            <span className="visually-hidden">Loading…</span>
+          </div>
+          <p className="mt-2 mb-0">Loading users…</p>
+        </div>
       ) : filtered.length === 0 ? (
         <div className="py-5 text-center text-muted">No users found.</div>
       ) : (
-        <div className="table-responsive">
-          <table className="table table-hover align-middle">
-            <thead className="table-light">
-              <tr>
-                <th>Email</th>
-                <th>Role</th>
-                <th>Spent</th>
-                <th>Active</th>
-                <th>Joined</th>
-                <th style={{ width: 260 }}>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map((u) => (
-                <tr key={u.id}>
-                  <td>{u.email}</td>
-                  <td style={{ textTransform: "capitalize" }}>{u.role}</td>
-                  <td>
-                    <strong>{money(u.spent || 0)}</strong>
-                  </td>
-                  <td>
-                    <span
-                      className={`badge ${
-                        u.active ? "bg-success" : "bg-danger"
-                      }`}
-                    >
-                      {u.active ? "active" : "inactive"}
-                    </span>
-                  </td>
-                  <td>{fmtDate(u.createdAt)}</td>
-                  <td className="d-flex flex-wrap gap-2">
-                    {u.active ? (
-                      <button
-                        className="btn btn-sm btn-warning"
-                        disabled={busyId === u.id}
-                        onClick={() => setActive(u.id, false)}
-                        title="Deactivate user"
-                      >
-                        {busyId === u.id ? "Updating…" : "Deactivate"}
-                      </button>
-                    ) : (
-                      <button
-                        className="btn btn-sm btn-success"
-                        disabled={busyId === u.id}
-                        onClick={() => setActive(u.id, true)}
-                        title="Activate user"
-                      >
-                        {busyId === u.id ? "Updating…" : "Activate"}
-                      </button>
-                    )}
-                    <button
-                      className="btn btn-sm btn-outline-danger"
-                      disabled={busyId === u.id}
-                      onClick={() => remove(u.id)}
-                      title="Delete user"
-                    >
-                      {busyId === u.id ? "Deleting…" : "Delete"}
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <>
+          {/* Summary card (consistent section) */}
+          <div className="card mb-3">
+            <div className="card-header bg-light">
+              <h5 className="mb-0">Summary</h5>
+            </div>
+            <div className="card-body d-flex justify-content-between align-items-center">
+              <span>
+                Showing {filtered.length} of {usersWithSpend.length} users
+              </span>
+              <span>
+                Total spend (shown):{" "}
+                <strong>{money(totals.totalSpendShown)}</strong>
+              </span>
+            </div>
+          </div>
+
+          {/* Table in a card */}
+          <div className="card">
+            <div className="card-header bg-light">
+              <h5 className="mb-0">User List</h5>
+            </div>
+            <div className="card-body p-0">
+              <div className="table-responsive">
+                <table className="table table-hover align-middle mb-0">
+                  <thead className="table-light">
+                    <tr>
+                      <th>Email</th>
+                      <th>Role</th>
+                      <th>Spent</th>
+                      <th>Active</th>
+                      <th>Joined</th>
+                      <th style={{ width: 260 }}>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filtered.map((u) => (
+                      <tr key={u.id}>
+                        <td className="text-truncate" style={{ maxWidth: 320 }}>
+                          {u.email}
+                        </td>
+                        <td style={{ textTransform: "capitalize" }}>
+                          {u.role}
+                        </td>
+                        <td>
+                          <strong>{money(u.spent || 0)}</strong>
+                        </td>
+                        <td>
+                          <span
+                            className={`badge ${
+                              u.active ? "bg-success" : "bg-danger"
+                            }`}
+                          >
+                            {u.active ? "active" : "inactive"}
+                          </span>
+                        </td>
+                        <td>{fmtDate(u.createdAt)}</td>
+                        <td>
+                          <div className="d-flex flex-wrap gap-2">
+                            {u.active ? (
+                              <button
+                                className="btn btn-sm btn-warning"
+                                disabled={busyId === u.id}
+                                onClick={() => setActive(u.id, false)}
+                                title="Deactivate user"
+                              >
+                                {busyId === u.id ? "Updating…" : "Deactivate"}
+                              </button>
+                            ) : (
+                              <button
+                                className="btn btn-sm btn-success"
+                                disabled={busyId === u.id}
+                                onClick={() => setActive(u.id, true)}
+                                title="Activate user"
+                              >
+                                {busyId === u.id ? "Updating…" : "Activate"}
+                              </button>
+                            )}
+                            <button
+                              className="btn btn-sm btn-outline-danger"
+                              disabled={busyId === u.id}
+                              onClick={() => remove(u.id)}
+                              title="Delete user"
+                            >
+                              {busyId === u.id ? "Deleting…" : "Delete"}
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </>
       )}
-    </>
+    </div>
   );
 }

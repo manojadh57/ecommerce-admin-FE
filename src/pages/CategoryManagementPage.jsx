@@ -1,13 +1,13 @@
 import { useState, useEffect, Fragment, useMemo } from "react";
-import { Table, Button, Modal, Spinner, Alert } from "react-bootstrap";
+import { Modal, Spinner } from "react-bootstrap";
 import api from "../services/api";
 import CategoryForm from "../components/CategoryForm";
 
-//formatters//
+// formatters
 const LOCALE = import.meta.env.VITE_LOCALE || "en-AU";
 const CURRENCY = (import.meta.env.VITE_CURRENCY || "AUD").toUpperCase();
 
-const fmtInt = new Intl.NumberFormat(LOCALE); // 1,234
+const fmtInt = new Intl.NumberFormat(LOCALE);
 const fmtMoney = new Intl.NumberFormat(LOCALE, {
   style: "currency",
   currency: CURRENCY,
@@ -15,7 +15,7 @@ const fmtMoney = new Intl.NumberFormat(LOCALE, {
   maximumFractionDigits: 2,
 });
 
-//helpers//
+// helpers
 function idOf(parentLike) {
   if (!parentLike) return null;
   if (typeof parentLike === "string") return parentLike;
@@ -24,7 +24,7 @@ function idOf(parentLike) {
 }
 
 export default function CategoryManagementPage() {
-  /* ---------- state ---------- */
+  // ---------- state ----------
   const [cats, setCats] = useState([]);
   const [pageLoading, setPageLoading] = useState(true);
   const [error, setError] = useState("");
@@ -41,7 +41,7 @@ export default function CategoryManagementPage() {
   const [prodLoading, setProdLoading] = useState(false);
   const [prodError, setProdError] = useState("");
 
-  //data load//
+  // data load
   const fetchCats = async () => {
     try {
       setPageLoading(true);
@@ -66,7 +66,7 @@ export default function CategoryManagementPage() {
 
   const parents = useMemo(() => cats.filter((c) => !idOf(c.parent)), [cats]);
 
-  // Map: parents to child
+  // Map: parent -> sum of child productCount
   const childCountMap = useMemo(() => {
     const map = new Map();
     for (const c of cats) {
@@ -87,7 +87,19 @@ export default function CategoryManagementPage() {
     return parents.filter((p) => p.name?.toLowerCase().includes(txt));
   }, [parents, q]);
 
-  //actions//
+  // Stats
+  const stats = useMemo(() => {
+    const parentsCount = parents.length;
+    const categories = cats.length;
+    const childrenCount = Math.max(0, categories - parentsCount);
+    const totalProducts = cats.reduce(
+      (sum, c) => sum + (Number(c.productCount) || 0),
+      0
+    );
+    return { categories, parentsCount, childrenCount, totalProducts };
+  }, [cats, parents]);
+
+  // actions
   const saveCat = async (payload) => {
     try {
       setActionLoading(true);
@@ -180,178 +192,235 @@ export default function CategoryManagementPage() {
   };
 
   return (
-    <>
-      {/* header */}
-      <div className="d-flex flex-wrap align-items-center gap-2 mb-3">
-        <h3 className="mb-0">Categories</h3>
+    <div className="container-fluid">
+      {/* ===== Header (aligns with other pages) ===== */}
+      <div className="d-flex flex-wrap justify-content-between align-items-center mb-4 gap-2">
+        <div className="d-flex align-items-center flex-wrap gap-2">
+          <h2 className="mb-0">Categories</h2>
+          <div className="d-flex gap-2 ms-2">
+            <span className="badge bg-secondary">
+              {fmtInt.format(stats.categories)} total
+            </span>
+            <span className="badge bg-info">
+              {fmtInt.format(stats.parentsCount)} parents
+            </span>
+            <span className="badge bg-light text-dark">
+              {fmtInt.format(stats.childrenCount)} subcategories
+            </span>
+          </div>
+        </div>
 
-        <div className="ms-auto d-flex gap-2">
-          <input
-            className="form-control"
-            placeholder="Search categories"
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-            style={{ minWidth: 260 }}
-          />
-          <Button onClick={fetchCats} variant="outline-secondary">
+        <div className="d-flex gap-2 flex-wrap">
+          <button
+            className="btn btn-sm btn-outline-secondary"
+            onClick={fetchCats}
+          >
             Refresh
-          </Button>
-          <Button onClick={() => setShowForm(true)} disabled={actionLoading}>
+          </button>
+          <button
+            className="btn btn-sm btn-primary"
+            onClick={() => setShowForm(true)}
+            disabled={actionLoading}
+          >
             + Add Category
-          </Button>
+          </button>
         </div>
       </div>
 
-      {/* errors */}
+      {/* ===== Error ===== */}
       {error && (
-        <Alert
-          variant="danger"
-          className="d-flex justify-content-between align-items-center"
+        <div
+          className="alert alert-danger d-flex justify-content-between align-items-center"
+          role="alert"
         >
           <span>{error}</span>
-          <Button size="sm" variant="outline-dark" onClick={fetchCats}>
+          <button className="btn btn-sm btn-outline-dark" onClick={fetchCats}>
             Retry
-          </Button>
-        </Alert>
+          </button>
+        </div>
       )}
 
-      {/* table */}
+      {/* ===== Toolbar (light box; search consistent with other pages) ===== */}
+      <div className="border rounded p-3 bg-light mb-3">
+        <div className="d-flex flex-wrap gap-2 justify-content-between">
+          <div className="d-flex gap-2">
+            <input
+              className="form-control form-control-sm"
+              placeholder="Search parent categories…"
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              style={{ minWidth: 260 }}
+            />
+          </div>
+          <div className="text-muted small align-self-center">
+            Tip: search matches <strong>parent</strong> category names. Children
+            remain visible under each parent.
+          </div>
+        </div>
+      </div>
+
+      {/* ===== Loading / Table ===== */}
       {pageLoading ? (
         <div className="py-5 text-center">
           <Spinner animation="border" />
         </div>
       ) : (
-        <div className="table-responsive">
-          <Table bordered hover className="align-middle">
-            <thead className="table-light">
-              <tr>
-                <th>Name</th>
-                <th># Products</th>
-                <th style={{ width: 260 }}>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredParents.map((parent) => (
-                <Fragment key={parent._id}>
-                  {/* parent row */}
-                  <tr className="table-primary">
-                    <td>
-                      <strong>{parent.name}</strong>
-                    </td>
-                    <td>{fmtInt.format(totalForParent(parent))}</td>
-                    <td>
-                      <div className="d-flex flex-wrap gap-2">
-                        <Button
-                          size="sm"
-                          onClick={() => openProducts(parent._id)}
-                          disabled={actionLoading}
-                          title="View products in this category"
-                        >
-                          View
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="secondary"
-                          onClick={() => {
-                            setEditing(parent);
-                            setShowForm(true);
-                          }}
-                          disabled={actionLoading}
-                        >
-                          Edit
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="danger"
-                          onClick={() => delCat(parent._id)}
-                          disabled={deletingId === parent._id || actionLoading}
-                        >
-                          {deletingId === parent._id ? (
-                            <>
-                              <Spinner
-                                size="sm"
-                                animation="border"
-                                className="me-1"
-                              />
-                              Deleting…
-                            </>
-                          ) : (
-                            "Delete"
-                          )}
-                        </Button>
-                      </div>
-                    </td>
-                  </tr>
+        <>
+          {/* Summary card (keeps sections visually consistent) */}
+          <div className="card mb-3">
+            <div className="card-header bg-light">
+              <h5 className="mb-0">Summary</h5>
+            </div>
+            <div className="card-body d-flex justify-content-between align-items-center">
+              <span>
+                Showing {fmtInt.format(filteredParents.length)} of{" "}
+                {fmtInt.format(parents.length)} parent categories
+              </span>
+              <span>
+                Products across all categories:{" "}
+                <strong>{fmtInt.format(stats.totalProducts)}</strong>
+              </span>
+            </div>
+          </div>
 
-                  {/* children */}
-                  {cats
-                    .filter((c) => idOf(c.parent) === parent._id)
-                    .map((child) => (
-                      <tr key={child._id}>
-                        <td className="ps-4">— {child.name}</td>
-                        <td>
-                          {child.productCount != null
-                            ? fmtInt.format(child.productCount)
-                            : "—"}
-                        </td>
-                        <td>
-                          <div className="d-flex flex-wrap gap-2">
-                            <Button
-                              size="sm"
-                              onClick={() => openProducts(child._id)}
-                              disabled={actionLoading}
-                            >
-                              View
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="secondary"
-                              onClick={() => {
-                                setEditing(child);
-                                setShowForm(true);
-                              }}
-                              disabled={actionLoading}
-                            >
-                              Edit
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="danger"
-                              onClick={() => delCat(child._id)}
-                              disabled={
-                                deletingId === child._id || actionLoading
-                              }
-                            >
-                              {deletingId === child._id ? (
-                                <>
-                                  <Spinner
-                                    size="sm"
-                                    animation="border"
-                                    className="me-1"
-                                  />
-                                  Deleting…
-                                </>
-                              ) : (
-                                "Delete"
-                              )}
-                            </Button>
-                          </div>
+          {/* Category tree in a card */}
+          <div className="card">
+            <div className="card-header bg-light">
+              <h5 className="mb-0">Category Tree</h5>
+            </div>
+            <div className="card-body p-0">
+              <div className="table-responsive">
+                <table className="table table-hover table-bordered align-middle mb-0">
+                  <thead className="table-light">
+                    <tr>
+                      <th>Name</th>
+                      <th># Products</th>
+                      <th style={{ width: 260 }}>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredParents.map((parent) => (
+                      <Fragment key={parent._id}>
+                        {/* parent row */}
+                        <tr className="table-primary">
+                          <td>
+                            <strong>{parent.name}</strong>
+                          </td>
+                          <td>{fmtInt.format(totalForParent(parent))}</td>
+                          <td>
+                            <div className="d-flex flex-wrap gap-2">
+                              <button
+                                className="btn btn-sm btn-outline-primary"
+                                onClick={() => openProducts(parent._id)}
+                                disabled={actionLoading}
+                                title="View products in this category"
+                              >
+                                View
+                              </button>
+                              <button
+                                className="btn btn-sm btn-secondary"
+                                onClick={() => {
+                                  setEditing(parent);
+                                  setShowForm(true);
+                                }}
+                                disabled={actionLoading}
+                              >
+                                Edit
+                              </button>
+                              <button
+                                className="btn btn-sm btn-danger"
+                                onClick={() => delCat(parent._id)}
+                                disabled={
+                                  deletingId === parent._id || actionLoading
+                                }
+                              >
+                                {deletingId === parent._id ? (
+                                  <>
+                                    <Spinner
+                                      size="sm"
+                                      animation="border"
+                                      className="me-1"
+                                    />{" "}
+                                    Deleting…
+                                  </>
+                                ) : (
+                                  "Delete"
+                                )}
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+
+                        {/* children */}
+                        {cats
+                          .filter((c) => idOf(c.parent) === parent._id)
+                          .map((child) => (
+                            <tr key={child._id}>
+                              <td className="ps-4">— {child.name}</td>
+                              <td>
+                                {child.productCount != null
+                                  ? fmtInt.format(child.productCount)
+                                  : "—"}
+                              </td>
+                              <td>
+                                <div className="d-flex flex-wrap gap-2">
+                                  <button
+                                    className="btn btn-sm btn-outline-primary"
+                                    onClick={() => openProducts(child._id)}
+                                    disabled={actionLoading}
+                                  >
+                                    View
+                                  </button>
+                                  <button
+                                    className="btn btn-sm btn-secondary"
+                                    onClick={() => {
+                                      setEditing(child);
+                                      setShowForm(true);
+                                    }}
+                                    disabled={actionLoading}
+                                  >
+                                    Edit
+                                  </button>
+                                  <button
+                                    className="btn btn-sm btn-danger"
+                                    onClick={() => delCat(child._id)}
+                                    disabled={
+                                      deletingId === child._id || actionLoading
+                                    }
+                                  >
+                                    {deletingId === child._id ? (
+                                      <>
+                                        <Spinner
+                                          size="sm"
+                                          animation="border"
+                                          className="me-1"
+                                        />{" "}
+                                        Deleting…
+                                      </>
+                                    ) : (
+                                      "Delete"
+                                    )}
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          ))}
+                      </Fragment>
+                    ))}
+
+                    {filteredParents.length === 0 && (
+                      <tr>
+                        <td colSpan={3} className="text-center text-muted">
+                          No categories found.
                         </td>
                       </tr>
-                    ))}
-                </Fragment>
-              ))}
-
-              {filteredParents.length === 0 && (
-                <tr>
-                  <td colSpan={3} className="text-center text-muted">
-                    No categories found.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </Table>
-        </div>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </>
       )}
 
       {/* create/edit modal */}
@@ -390,31 +459,35 @@ export default function CategoryManagementPage() {
               <Spinner animation="border" />
             </div>
           ) : prodError ? (
-            <Alert variant="danger">{prodError}</Alert>
+            <div className="alert alert-danger mb-0" role="alert">
+              {prodError}
+            </div>
           ) : products.length ? (
-            <Table bordered hover>
-              <thead className="table-light">
-                <tr>
-                  <th>Name</th>
-                  <th>Price</th>
-                  <th>Stock</th>
-                </tr>
-              </thead>
-              <tbody>
-                {products.map((p) => (
-                  <tr key={p._id}>
-                    <td>{p.name}</td>
-                    <td>{fmtMoney.format(Number(p.price) || 0)}</td>
-                    <td>{fmtInt.format(Number(p.stock) || 0)}</td>
+            <div className="table-responsive">
+              <table className="table table-bordered table-hover align-middle mb-0">
+                <thead className="table-light">
+                  <tr>
+                    <th>Name</th>
+                    <th>Price</th>
+                    <th>Stock</th>
                   </tr>
-                ))}
-              </tbody>
-            </Table>
+                </thead>
+                <tbody>
+                  {products.map((p) => (
+                    <tr key={p._id}>
+                      <td>{p.name}</td>
+                      <td>{fmtMoney.format(Number(p.price) || 0)}</td>
+                      <td>{fmtInt.format(Number(p.stock) || 0)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           ) : (
             <p className="mb-0">No products found for this category.</p>
           )}
         </Modal.Body>
       </Modal>
-    </>
+    </div>
   );
 }

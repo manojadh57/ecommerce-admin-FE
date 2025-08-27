@@ -1,9 +1,10 @@
+// src/pages/admin/ReviewManagementPage.jsx
 import { useEffect, useMemo, useRef, useState } from "react";
 import api from "../services/api.js";
 
 const ROOT = import.meta.env.VITE_ROOT_URL || "http://localhost:8000";
 
-//helpers
+// helpers
 const placeImg = "https://placehold.co/120x120?text=No+Image";
 
 function normalizeImagePath(p) {
@@ -155,6 +156,27 @@ export default function ReviewManagementPage() {
     return arr;
   }, [all, status, minRating, fromDate, now, q, sortBy]);
 
+  // stats (overall and shown)
+  const statsAll = useMemo(() => {
+    const total = all.length;
+    const approved = all.filter((r) => r.approved).length;
+    const pending = total - approved;
+    const avg = total
+      ? all.reduce((s, r) => s + (r.rating || 0), 0) / total
+      : 0;
+    return { total, approved, pending, avg };
+  }, [all]);
+
+  const statsShown = useMemo(() => {
+    const total = filtered.length;
+    const approved = filtered.filter((r) => r.approved).length;
+    const pending = total - approved;
+    const avg = total
+      ? filtered.reduce((s, r) => s + (r.rating || 0), 0) / total
+      : 0;
+    return { total, approved, pending, avg };
+  }, [filtered]);
+
   // tri-state select all
   const headChk = useRef(null);
   const filteredIds = useMemo(() => filtered.map((r) => r.id), [filtered]);
@@ -227,7 +249,6 @@ export default function ReviewManagementPage() {
     if (selected.size === 0) return alert("Select some reviews first");
     setBulkBusy(true);
     try {
-      // Prefer a bulk endpoint if you add one; fallback to one-by-one:
       await withFallbackAllSettled(
         Array.from(selected).map((id) =>
           api.put(`/reviews/${id}/approve`, { approved })
@@ -311,16 +332,16 @@ export default function ReviewManagementPage() {
     objectFit: "cover",
     display: "block",
   };
-  const commentBase = (expanded) => ({
+  const commentBase = (isOpen) => ({
     maxWidth: 520,
     fontSize: 15,
     color: "#4b5563",
     overflow: "hidden",
     textOverflow: "ellipsis",
     display: "-webkit-box",
-    WebkitLineClamp: expanded ? "unset" : 2,
+    WebkitLineClamp: isOpen ? "unset" : 2,
     WebkitBoxOrient: "vertical",
-    whiteSpace: expanded ? "normal" : "initial",
+    whiteSpace: isOpen ? "normal" : "initial",
   });
   const chip = (bg, color = "#000") => ({
     display: "inline-block",
@@ -336,268 +357,355 @@ export default function ReviewManagementPage() {
   const chipPending = chip("#fff3cd", "#663c00");
 
   return (
-    <>
-      {/* header */}
-      <div
-        className="d-flex flex-wrap gap-2 align-items-center mb-3"
-        style={{ rowGap: 8 }}
-      >
-        <h3 className="mb-0">Reviews</h3>
+    <div className="container-fluid">
+      {/* ===== Header (aligned with other pages) ===== */}
+      <div className="d-flex flex-wrap justify-content-between align-items-center mb-4 gap-2">
+        <div className="d-flex align-items-center flex-wrap gap-2">
+          <h2 className="mb-0">Reviews</h2>
+          <div className="d-flex gap-2 ms-2">
+            <span className="badge bg-secondary">{statsAll.total} total</span>
+            <span className="badge bg-success">
+              {statsAll.approved} approved
+            </span>
+            <span className="badge bg-warning text-dark">
+              {statsAll.pending} pending
+            </span>
+            <span className="badge bg-info text-dark">
+              Avg {statsAll.avg ? statsAll.avg.toFixed(1) : "0.0"}★
+            </span>
+          </div>
+        </div>
 
-        <div className="ms-auto d-flex flex-wrap gap-2">
-          <input
-            className="form-control"
-            placeholder="Search (product, comment, user)"
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-            style={{ minWidth: 260 }}
-          />
-          <select
-            className="form-select"
-            value={status}
-            onChange={(e) => setStatus(e.target.value)}
-            title="Status"
-            style={{ width: 130 }}
-          >
-            <option value="all">All</option>
-            <option value="pending">Pending</option>
-            <option value="approved">Approved</option>
-          </select>
-          <select
-            className="form-select"
-            value={minRating}
-            onChange={(e) => setMinRating(e.target.value)}
-            title="Min rating"
-            style={{ width: 130 }}
-          >
-            <option value={0}>Rating: any</option>
-            <option value={5}>Rating: 5★</option>
-            <option value={4}>Rating: ≥4★</option>
-            <option value={3}>Rating: ≥3★</option>
-            <option value={2}>Rating: ≥2★</option>
-            <option value={1}>Rating: ≥1★</option>
-          </select>
-          <select
-            className="form-select"
-            value={range}
-            onChange={(e) => setRange(e.target.value)}
-            title="Date range"
-            style={{ width: 140 }}
-          >
-            <option value="7d">Last 7d</option>
-            <option value="30d">Last 30d</option>
-            <option value="90d">Last 90d</option>
-            <option value="all">All time</option>
-          </select>
-          <select
-            className="form-select"
-            value={sortBy}
-            onChange={(e) => setSortBy(e.target.value)}
-            title="Sort"
-            style={{ width: 140 }}
-          >
-            <option value="newest">Newest</option>
-            <option value="oldest">Oldest</option>
-            <option value="rating">Rating</option>
-          </select>
+        <div className="d-flex gap-2 flex-wrap">
           <button
-            className="btn btn-outline-secondary"
+            className="btn btn-sm btn-outline-secondary"
             onClick={load}
             disabled={loading}
           >
             {loading ? "Refreshing…" : "Refresh"}
           </button>
-        </div>
-      </div>
-
-      {/* bulk actions bar */}
-      <div className="d-flex flex-wrap align-items-center gap-2 mb-2">
-        <div className="text-muted small">
-          {selected.size
-            ? `${selected.size} selected`
-            : `${filtered.length} shown`}
-        </div>
-        <div className="ms-auto d-flex gap-2">
           <button
             className="btn btn-sm btn-outline-primary"
             onClick={exportCSV}
             disabled={loading || (!filtered.length && !selected.size)}
+            title="Export visible/selected"
           >
             Export CSV
-          </button>
-          <button
-            className="btn btn-sm btn-success"
-            onClick={() => bulkApprove(true)}
-            disabled={bulkBusy || selected.size === 0}
-          >
-            {bulkBusy ? "Working…" : "Approve Selected"}
-          </button>
-          <button
-            className="btn btn-sm btn-warning"
-            onClick={() => bulkApprove(false)}
-            disabled={bulkBusy || selected.size === 0}
-          >
-            {bulkBusy ? "Working…" : "Unapprove Selected"}
-          </button>
-          <button
-            className="btn btn-sm btn-outline-danger"
-            onClick={bulkDelete}
-            disabled={bulkBusy || selected.size === 0}
-          >
-            {bulkBusy ? "Working…" : "Delete Selected"}
           </button>
         </div>
       </div>
 
-      {err && <div className="alert alert-danger">{err}</div>}
-
-      {loading ? (
-        <div className="py-5 text-center">Loading…</div>
-      ) : filtered.length === 0 ? (
-        <div className="py-5 text-center text-muted">No reviews found.</div>
-      ) : (
-        <div className="table-responsive">
-          <table className="table table-hover align-middle">
-            <thead className="table-light">
-              <tr>
-                <th style={{ width: 44 }}>
-                  <input
-                    ref={headChk}
-                    type="checkbox"
-                    className="form-check-input"
-                    checked={allChecked}
-                    onChange={toggleAll}
-                    aria-checked={someChecked ? "mixed" : allChecked}
-                  />
-                </th>
-                <th style={{ width: 340 }}>Product</th>
-                <th>User</th>
-                <th>Rating</th>
-                <th>Comment</th>
-                <th>Status</th>
-                <th>Date</th>
-                <th style={{ width: 300 }}>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map((r) => {
-                const isExpanded = expanded.has(r.id);
-                return (
-                  <tr
-                    key={r.id}
-                    className={selected.has(r.id) ? "table-active" : ""}
-                  >
-                    <td>
-                      <input
-                        type="checkbox"
-                        className="form-check-input"
-                        checked={selected.has(r.id)}
-                        onChange={() => toggleOne(r.id)}
-                      />
-                    </td>
-
-                    <td>
-                      <div className="d-flex align-items-center gap-3">
-                        <div style={thumbWrap}>
-                          <img
-                            src={r.productImage || placeImg}
-                            alt=""
-                            style={thumbImg}
-                            onError={(e) => (e.currentTarget.src = placeImg)}
-                          />
-                        </div>
-                        <div
-                          className="text-truncate"
-                          style={{ maxWidth: 240 }}
-                        >
-                          {r.productName || "—"}
-                        </div>
-                      </div>
-                    </td>
-
-                    <td className="text-truncate" style={{ maxWidth: 220 }}>
-                      {r.userEmail}
-                    </td>
-
-                    <td>
-                      <Stars value={r.rating} />
-                    </td>
-
-                    <td>
-                      <div style={commentBase(isExpanded)}>
-                        {r.comment || "—"}
-                      </div>
-                      {r.comment && r.comment.length > 80 && (
-                        <button
-                          className="btn btn-link p-0 small"
-                          onClick={() =>
-                            setExpanded((prev) => {
-                              const next = new Set(prev);
-                              next.has(r.id)
-                                ? next.delete(r.id)
-                                : next.add(r.id);
-                              return next;
-                            })
-                          }
-                        >
-                          {isExpanded ? "Show less" : "Show more"}
-                        </button>
-                      )}
-                    </td>
-
-                    <td>
-                      {r.approved ? (
-                        <span style={chipApproved}>approved</span>
-                      ) : (
-                        <span style={chipPending}>pending</span>
-                      )}
-                    </td>
-
-                    <td>
-                      {r.createdAt ? r.createdAt.toLocaleDateString() : "—"}
-                    </td>
-
-                    <td className="d-flex flex-wrap gap-2">
-                      <button
-                        className="btn btn-sm btn-outline-secondary"
-                        onClick={() => setView(r)}
-                      >
-                        View
-                      </button>
-                      {r.approved ? (
-                        <button
-                          className="btn btn-sm btn-warning"
-                          disabled={busyId === r.id}
-                          onClick={() => setApproval(r.id, false)}
-                        >
-                          {busyId === r.id ? "Updating…" : "Unapprove"}
-                        </button>
-                      ) : (
-                        <button
-                          className="btn btn-sm btn-primary"
-                          disabled={busyId === r.id}
-                          onClick={() => setApproval(r.id, true)}
-                        >
-                          {busyId === r.id ? "Approving…" : "Approve"}
-                        </button>
-                      )}
-                      <button
-                        className="btn btn-sm btn-outline-danger"
-                        disabled={busyId === r.id}
-                        onClick={() => remove(r.id)}
-                      >
-                        {busyId === r.id ? "Deleting…" : "Delete"}
-                      </button>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+      {/* ===== Error ===== */}
+      {err && (
+        <div
+          className="alert alert-danger d-flex justify-content-between align-items-center"
+          role="alert"
+        >
+          <span>{err}</span>
+          <button className="btn btn-sm btn-outline-dark" onClick={load}>
+            Retry
+          </button>
         </div>
       )}
 
-      {/* View modal */}
+      {/* ===== Toolbar (light box; filters + conditional bulk actions) ===== */}
+      <div className="border rounded p-3 bg-light mb-3">
+        <div className="d-flex flex-wrap gap-2 justify-content-between">
+          <div className="d-flex flex-wrap gap-2">
+            <input
+              className="form-control form-control-sm"
+              placeholder="Search (product, comment, user)…"
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              style={{ minWidth: 260 }}
+            />
+            <select
+              className="form-select form-select-sm"
+              value={status}
+              onChange={(e) => setStatus(e.target.value)}
+              title="Status"
+              style={{ width: 140 }}
+            >
+              <option value="all">All</option>
+              <option value="pending">Pending</option>
+              <option value="approved">Approved</option>
+            </select>
+            <select
+              className="form-select form-select-sm"
+              value={minRating}
+              onChange={(e) => setMinRating(e.target.value)}
+              title="Min rating"
+              style={{ width: 150 }}
+            >
+              <option value={0}>Rating: any</option>
+              <option value={5}>Rating: 5★</option>
+              <option value={4}>Rating: ≥4★</option>
+              <option value={3}>Rating: ≥3★</option>
+              <option value={2}>Rating: ≥2★</option>
+              <option value={1}>Rating: ≥1★</option>
+            </select>
+            <select
+              className="form-select form-select-sm"
+              value={range}
+              onChange={(e) => setRange(e.target.value)}
+              title="Date range"
+              style={{ width: 150 }}
+            >
+              <option value="7d">Last 7 days</option>
+              <option value="30d">Last 30 days</option>
+              <option value="90d">Last 90 days</option>
+              <option value="all">All time</option>
+            </select>
+            <select
+              className="form-select form-select-sm"
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value)}
+              title="Sort by"
+              style={{ width: 150 }}
+            >
+              <option value="newest">Newest</option>
+              <option value="oldest">Oldest</option>
+              <option value="rating">Rating</option>
+            </select>
+          </div>
+
+          {/* Conditional bulk actions (mirrors Products page pattern) */}
+          <div className="d-flex flex-wrap gap-2 align-items-center">
+            {selected.size > 0 ? (
+              <>
+                <span className="badge bg-info text-dark align-self-center">
+                  {selected.size} selected
+                </span>
+                <button
+                  className="btn btn-sm btn-success"
+                  onClick={() => bulkApprove(true)}
+                  disabled={bulkBusy}
+                >
+                  {bulkBusy ? "Working…" : "Approve"}
+                </button>
+                <button
+                  className="btn btn-sm btn-warning"
+                  onClick={() => bulkApprove(false)}
+                  disabled={bulkBusy}
+                >
+                  {bulkBusy ? "Working…" : "Unapprove"}
+                </button>
+                <button
+                  className="btn btn-sm btn-outline-danger"
+                  onClick={bulkDelete}
+                  disabled={bulkBusy}
+                >
+                  {bulkBusy ? "Working…" : "Delete"}
+                </button>
+                <button
+                  className="btn btn-sm btn-outline-secondary"
+                  onClick={() => setSelected(new Set())}
+                  disabled={bulkBusy}
+                >
+                  Clear
+                </button>
+              </>
+            ) : (
+              <span className="text-muted small">
+                Showing {statsShown.total} of {statsAll.total} · Avg{" "}
+                {statsShown.avg ? statsShown.avg.toFixed(1) : "0.0"}★
+              </span>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* ===== Loading / Empty ===== */}
+      {loading ? (
+        <div className="py-5 text-center">
+          <div className="spinner-border text-primary" role="status">
+            <span className="visually-hidden">Loading…</span>
+          </div>
+          <p className="mt-2 mb-0">Loading reviews…</p>
+        </div>
+      ) : filtered.length === 0 ? (
+        <div className="py-5 text-center text-muted">No reviews found.</div>
+      ) : (
+        <>
+          {/* Summary card (consistent section) */}
+          <div className="card mb-3">
+            <div className="card-header bg-light">
+              <h5 className="mb-0">Summary</h5>
+            </div>
+            <div className="card-body d-flex justify-content-between align-items-center">
+              <span>
+                Showing {statsShown.total} of {statsAll.total} reviews
+              </span>
+              <span>
+                Approved: <strong>{statsShown.approved}</strong> · Pending:{" "}
+                <strong>{statsShown.pending}</strong> · Avg{" "}
+                <strong>
+                  {statsShown.avg ? statsShown.avg.toFixed(1) : "0.0"}★
+                </strong>
+              </span>
+            </div>
+          </div>
+
+          {/* Table in a card */}
+          <div className="card">
+            <div className="card-header bg-light">
+              <h5 className="mb-0">Review List</h5>
+            </div>
+            <div className="card-body p-0">
+              <div className="table-responsive">
+                <table className="table table-hover align-middle mb-0">
+                  <thead className="table-light">
+                    <tr>
+                      <th style={{ width: 44 }}>
+                        <input
+                          ref={headChk}
+                          type="checkbox"
+                          className="form-check-input"
+                          checked={allChecked}
+                          onChange={toggleAll}
+                          aria-checked={someChecked ? "mixed" : allChecked}
+                        />
+                      </th>
+                      <th style={{ width: 340 }}>Product</th>
+                      <th>User</th>
+                      <th>Rating</th>
+                      <th>Comment</th>
+                      <th>Status</th>
+                      <th>Date</th>
+                      <th style={{ width: 300 }}>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filtered.map((r) => {
+                      const isExpanded = expanded.has(r.id);
+                      return (
+                        <tr
+                          key={r.id}
+                          className={selected.has(r.id) ? "table-active" : ""}
+                        >
+                          <td>
+                            <input
+                              type="checkbox"
+                              className="form-check-input"
+                              checked={selected.has(r.id)}
+                              onChange={() => toggleOne(r.id)}
+                            />
+                          </td>
+
+                          <td>
+                            <div className="d-flex align-items-center gap-3">
+                              <div style={thumbWrap}>
+                                <img
+                                  src={r.productImage || placeImg}
+                                  alt=""
+                                  style={thumbImg}
+                                  onError={(e) =>
+                                    (e.currentTarget.src = placeImg)
+                                  }
+                                />
+                              </div>
+                              <div
+                                className="text-truncate"
+                                style={{ maxWidth: 240 }}
+                              >
+                                {r.productName || "—"}
+                              </div>
+                            </div>
+                          </td>
+
+                          <td
+                            className="text-truncate"
+                            style={{ maxWidth: 220 }}
+                          >
+                            {r.userEmail}
+                          </td>
+
+                          <td>
+                            <Stars value={r.rating} />
+                          </td>
+
+                          <td>
+                            <div style={commentBase(isExpanded)}>
+                              {r.comment || "—"}
+                            </div>
+                            {r.comment && r.comment.length > 80 && (
+                              <button
+                                className="btn btn-link p-0 small"
+                                onClick={() =>
+                                  setExpanded((prev) => {
+                                    const next = new Set(prev);
+                                    next.has(r.id)
+                                      ? next.delete(r.id)
+                                      : next.add(r.id);
+                                    return next;
+                                  })
+                                }
+                              >
+                                {isExpanded ? "Show less" : "Show more"}
+                              </button>
+                            )}
+                          </td>
+
+                          <td>
+                            {r.approved ? (
+                              <span style={chipApproved}>approved</span>
+                            ) : (
+                              <span style={chipPending}>pending</span>
+                            )}
+                          </td>
+
+                          <td>
+                            {r.createdAt
+                              ? r.createdAt.toLocaleDateString()
+                              : "—"}
+                          </td>
+
+                          <td>
+                            <div className="d-flex flex-wrap gap-2">
+                              <button
+                                className="btn btn-sm btn-outline-secondary"
+                                onClick={() => setView(r)}
+                              >
+                                View
+                              </button>
+                              {r.approved ? (
+                                <button
+                                  className="btn btn-sm btn-warning"
+                                  disabled={busyId === r.id}
+                                  onClick={() => setApproval(r.id, false)}
+                                >
+                                  {busyId === r.id ? "Updating…" : "Unapprove"}
+                                </button>
+                              ) : (
+                                <button
+                                  className="btn btn-sm btn-primary"
+                                  disabled={busyId === r.id}
+                                  onClick={() => setApproval(r.id, true)}
+                                >
+                                  {busyId === r.id ? "Approving…" : "Approve"}
+                                </button>
+                              )}
+                              <button
+                                className="btn btn-sm btn-outline-danger"
+                                disabled={busyId === r.id}
+                                onClick={() => remove(r.id)}
+                              >
+                                {busyId === r.id ? "Deleting…" : "Delete"}
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* View modal (simple Bootstrap modal markup; consistent buttons) */}
       {view && (
         <div
           className="modal d-block"
@@ -683,6 +791,6 @@ export default function ReviewManagementPage() {
           </div>
         </div>
       )}
-    </>
+    </div>
   );
 }

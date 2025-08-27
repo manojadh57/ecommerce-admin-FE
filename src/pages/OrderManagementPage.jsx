@@ -77,6 +77,38 @@ export default function AdminOrdersPage() {
     });
   }, [orders, q, statusFilter]);
 
+  /* ---------- header stats ---------- */
+  const stats = useMemo(() => {
+    const total = orders.length;
+    const norm = (s) => String(s || "").toLowerCase();
+    let pending = 0,
+      processing = 0,
+      shipped = 0,
+      delivered = 0,
+      cancelled = 0;
+    for (const o of orders) {
+      const s = norm(o.status);
+      if (s === "delivered" || s.includes("deliver")) delivered++;
+      else if (s === "shipped" || s.includes("ship")) shipped++;
+      else if (s === "processing" || s.includes("process")) processing++;
+      else if (s === "cancelled" || s.includes("cancel")) cancelled++;
+      else pending++;
+    }
+    const filteredTotalCents = filtered.reduce(
+      (sum, o) => sum + (Number(o.totalAmount) || 0),
+      0
+    );
+    return {
+      total,
+      pending,
+      processing,
+      shipped,
+      delivered,
+      cancelled,
+      filteredTotalCents,
+    };
+  }, [orders, filtered]);
+
   /* ---------- status update ---------- */
   const updateStatus = async (id, status) => {
     try {
@@ -115,120 +147,198 @@ export default function AdminOrdersPage() {
 
   return (
     <div className="container-fluid">
-      {/* header */}
-      <div className="d-flex align-items-center gap-2 mb-3">
-        <h3 className="mb-0">Orders</h3>
+      {/* ===== Header (aligned with other pages) ===== */}
+      <div className="d-flex flex-wrap justify-content-between align-items-center mb-4 gap-2">
+        <div className="d-flex align-items-center flex-wrap gap-2">
+          <h2 className="mb-0">Orders</h2>
+          <div className="d-flex gap-2 ms-2">
+            <span className="badge bg-secondary">{stats.total} total</span>
+            <span className="badge bg-warning text-dark">
+              {stats.pending} pending
+            </span>
+            <span className="badge bg-primary">
+              {stats.processing} processing
+            </span>
+            <span className="badge bg-info text-dark">
+              {stats.shipped} shipped
+            </span>
+            <span className="badge bg-success">
+              {stats.delivered} delivered
+            </span>
+            <span className="badge bg-danger">{stats.cancelled} cancelled</span>
+          </div>
+        </div>
 
-        <div className="ms-auto d-flex gap-2">
-          <input
-            className="form-control"
-            placeholder="Search (user email or product)"
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-            style={{ minWidth: 280 }}
-          />
-          <select
-            className="form-select"
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            style={{ width: 160 }}
-          >
-            <option value="all">All statuses</option>
-            <option value="pending">pending</option>
-            <option value="processing">processing</option>
-            <option value="shipped">shipped</option>
-            <option value="delivered">delivered</option>
-            <option value="cancelled">cancelled</option>
-          </select>
-          <button className="btn btn-outline-secondary" onClick={load}>
+        <div className="d-flex gap-2 flex-wrap">
+          <button className="btn btn-sm btn-outline-secondary" onClick={load}>
             Refresh
           </button>
         </div>
       </div>
 
-      {err && <div className="alert alert-danger">{err}</div>}
+      {/* ===== Error ===== */}
+      {err && (
+        <div
+          className="alert alert-danger d-flex justify-content-between align-items-center"
+          role="alert"
+        >
+          <span>{err}</span>
+          <button className="btn btn-sm btn-outline-dark" onClick={load}>
+            Retry
+          </button>
+        </div>
+      )}
 
+      {/* ===== Toolbar (light box; search + status filter) ===== */}
+      <div className="border rounded p-3 bg-light mb-3">
+        <div className="d-flex flex-wrap gap-2 justify-content-between">
+          <div className="d-flex flex-wrap gap-2">
+            <input
+              className="form-control form-control-sm"
+              placeholder="Search (user email or product)…"
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              style={{ minWidth: 280 }}
+            />
+            <select
+              className="form-select form-select-sm"
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              style={{ width: 180 }}
+            >
+              <option value="all">All statuses</option>
+              <option value="pending">pending</option>
+              <option value="processing">processing</option>
+              <option value="shipped">shipped</option>
+              <option value="delivered">delivered</option>
+              <option value="cancelled">cancelled</option>
+            </select>
+          </div>
+          <div className="text-muted small align-self-center">
+            Showing {filtered.length} of {orders.length} orders
+          </div>
+        </div>
+      </div>
+
+      {/* ===== Loading / Empty ===== */}
       {loading ? (
-        <div className="py-5 text-center">Loading…</div>
+        <div className="py-5 text-center">
+          <Spinner animation="border" />
+          <p className="mt-2 mb-0">Loading orders…</p>
+        </div>
       ) : filtered.length === 0 ? (
         <div className="py-5 text-center text-muted">No orders found.</div>
       ) : (
-        <div className="table-responsive">
-          <table className="table table-hover align-middle">
-            <thead className="table-light">
-              <tr>
-                <th>User</th>
-                <th>Products</th>
-                <th>Total</th>
-                <th>Status</th>
-                <th>Placed On</th>
-                <th style={{ width: 260 }}>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map((o) => {
-                const [variant, label] = statusBadge(o.status);
-                const when = o.createdAt
-                  ? new Date(o.createdAt).toLocaleDateString()
-                  : "—";
-                return (
-                  <tr key={o._id}>
-                    <td className="text-truncate" style={{ maxWidth: 260 }}>
-                      {o.userId?.email || "—"}
-                    </td>
+        <>
+          {/* Summary card (consistent section) */}
+          <div className="card mb-3">
+            <div className="card-header bg-light">
+              <h5 className="mb-0">Summary</h5>
+            </div>
+            <div className="card-body d-flex justify-content-between align-items-center">
+              <span>
+                Showing {filtered.length} of {orders.length} orders
+              </span>
+              <span>
+                Total value (shown):{" "}
+                <strong>${asAmount(stats.filteredTotalCents)}</strong>
+              </span>
+            </div>
+          </div>
 
-                    <td>
-                      <ul className="m-0 ps-3">
-                        {(o.products || []).map((it, i) => (
-                          <li
-                            key={i}
+          {/* Table in a card */}
+          <div className="card">
+            <div className="card-header bg-light">
+              <h5 className="mb-0">Order List</h5>
+            </div>
+            <div className="card-body p-0">
+              <div className="table-responsive">
+                <table className="table table-hover align-middle mb-0">
+                  <thead className="table-light">
+                    <tr>
+                      <th>User</th>
+                      <th>Products</th>
+                      <th>Total</th>
+                      <th>Status</th>
+                      <th>Placed On</th>
+                      <th style={{ width: 260 }}>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filtered.map((o) => {
+                      const [variant, label] = statusBadge(o.status);
+                      const when = o.createdAt
+                        ? new Date(o.createdAt).toLocaleDateString()
+                        : "—";
+                      return (
+                        <tr key={o._id}>
+                          <td
                             className="text-truncate"
-                            style={{ maxWidth: 520 }}
+                            style={{ maxWidth: 260 }}
                           >
-                            {it.productId?.name || "(product)"} × {it.quantity}
-                          </li>
-                        ))}
-                      </ul>
-                    </td>
+                            {o.userId?.email || "—"}
+                          </td>
 
-                    <td>${asAmount(o.totalAmount)}</td>
+                          <td>
+                            <ul className="m-0 ps-3">
+                              {(o.products || []).map((it, i) => (
+                                <li
+                                  key={i}
+                                  className="text-truncate"
+                                  style={{ maxWidth: 520 }}
+                                >
+                                  {it.productId?.name || "(product)"} ×{" "}
+                                  {it.quantity}
+                                </li>
+                              ))}
+                            </ul>
+                          </td>
 
-                    <td>
-                      <span className={`badge bg-${variant}`}>{label}</span>
-                    </td>
+                          <td>${asAmount(o.totalAmount)}</td>
 
-                    <td>{when}</td>
+                          <td>
+                            <span className={`badge bg-${variant}`}>
+                              {label}
+                            </span>
+                          </td>
 
-                    <td>
-                      <div className="d-flex gap-2 flex-wrap align-items-center">
-                        <select
-                          className="form-select"
-                          disabled={busyId === o._id}
-                          value={o.status}
-                          onChange={(e) => updateStatus(o._id, e.target.value)}
-                          style={{ width: 160 }}
-                        >
-                          <option value="pending">pending</option>
-                          <option value="processing">processing</option>
-                          <option value="shipped">shipped</option>
-                          <option value="delivered">delivered</option>
-                          <option value="cancelled">cancelled</option>
-                        </select>
+                          <td>{when}</td>
 
-                        <button
-                          className="btn btn-outline-primary btn-sm"
-                          onClick={() => openDetail(o._id)}
-                        >
-                          View
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+                          <td>
+                            <div className="d-flex gap-2 flex-wrap align-items-center">
+                              <select
+                                className="form-select"
+                                disabled={busyId === o._id}
+                                value={o.status}
+                                onChange={(e) =>
+                                  updateStatus(o._id, e.target.value)
+                                }
+                                style={{ width: 160 }}
+                              >
+                                <option value="pending">pending</option>
+                                <option value="processing">processing</option>
+                                <option value="shipped">shipped</option>
+                                <option value="delivered">delivered</option>
+                                <option value="cancelled">cancelled</option>
+                              </select>
+
+                              <button
+                                className="btn btn-outline-primary btn-sm"
+                                onClick={() => openDetail(o._id)}
+                              >
+                                View
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </>
       )}
 
       {/* ===== Detail Modal ===== */}
@@ -330,7 +440,7 @@ export default function AdminOrdersPage() {
                   <strong>Items</strong>
                 </div>
                 <div className="card-body table-responsive">
-                  <table className="table table-sm align-middle">
+                  <table className="table table-sm align-middle mb-0">
                     <thead>
                       <tr>
                         <th>Product</th>

@@ -1,0 +1,24 @@
+/* src/components/admin-header.css */
+.admin-header {
+  position: sticky;
+  top: 0;
+  z-index: 1040;
+
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+
+  height: 56px;
+  padding: 10px 16px;
+
+  background: #ffffff;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+  box-shadow: 0 1px 0 rgba(0,0,0,0.04);
+}
+
+.ah-title {
+  font-weight: 700;
+  letter-spacing: 0.2px;
+  color: #0f172a; /* slate-900 */
+}
